@@ -234,7 +234,7 @@ export default function NotificationModal({
           </div>
 
           {/* Connected Mail Tag */}
-          <div className="p-4 m-4 bg-teal-50/50 rounded-xl border border-teal-100/50">
+          <div className="p-4 mx-4 mt-4 mb-2 bg-teal-50/50 rounded-xl border border-teal-100/50">
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 bg-teal-500 rounded-lg text-white">
                 <Mail className="w-3.5 h-3.5" />
@@ -244,6 +244,29 @@ export default function NotificationModal({
                 <p className="text-xs font-bold text-slate-700 truncate" title={userProfile.email}>{userProfile.email}</p>
               </div>
             </div>
+          </div>
+
+          {/* Mobile Access QR Code Card */}
+          <div className="mx-4 mb-4 p-4 bg-slate-100 rounded-xl border border-slate-200/50 flex flex-col items-center text-center">
+            <div className="flex items-center justify-between w-full mb-2">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">📱 Open on Mobile</span>
+              <span className="bg-indigo-100 text-indigo-700 font-extrabold text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                Real-time Sync
+              </span>
+            </div>
+            
+            <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200/50 mb-2">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&color=0f172a&data=${encodeURIComponent(window.location.origin)}`}
+                alt="Scan to open on phone"
+                className="w-[100px] h-[100px]"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            
+            <p className="text-[10px] text-slate-500 leading-normal font-medium">
+              Scan with your phone to open, tap <strong>"Add to Home Screen"</strong> to install as a PWA, and authorize mobile notifications!
+            </p>
           </div>
         </div>
 

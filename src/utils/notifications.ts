@@ -201,6 +201,32 @@ export async function dispatchNotification(
 
       // Add notification document to Firestore
       await addDoc(notificationsRef, notificationDoc);
+
+      // Trigger real email dispatch via our Node.js back-end proxy
+      if (settings.emailEnabled && member.email) {
+        try {
+          fetch('/api/send-email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: member.email,
+              recipientName: member.name,
+              subject: emailContent.subject,
+              html: emailContent.html,
+            }),
+          }).then(res => res.json())
+            .then(data => {
+              console.log('Email dispatch response:', data);
+            })
+            .catch(e => {
+              console.error('Email fetch error:', e);
+            });
+        } catch (emailErr) {
+          console.error('Error initiating email dispatch fetch:', emailErr);
+        }
+      }
     }
   } catch (err) {
     console.error('Error dispatching notifications:', err);
