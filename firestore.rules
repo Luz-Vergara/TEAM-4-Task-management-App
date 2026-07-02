@@ -13,7 +13,8 @@ service cloud.firestore {
 
     // Allow workspace level read/writes
     match /workspaces/{workspaceId} {
-      allow read, write: if isAuthenticated();
+      allow get: if true; // Allow anyone to check if a workspace exists and verify its join code
+      allow list, write: if isAuthenticated();
 
       // Nested collections under workspace
       match /channels/{channelId} {

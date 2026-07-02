@@ -32,6 +32,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [workspaceAction, setWorkspaceAction] = useState<'create' | 'join'>('create');
   const [workspaceName, setWorkspaceName] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [createJoinCode, setCreateJoinCode] = useState(() => 'vibe-' + Math.floor(1000 + Math.random() * 9000));
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,7 +64,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         id: finalWorkspaceId,
         name: wName || workspaceName || 'Team Workspace',
         createdBy: uid,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        joinCode: createJoinCode.trim() || 'vibe-1234'
       });
       // Seed default channels
       await seedWorkspaceChannels(finalWorkspaceId, userRole === UserRole.LEADER ? uid : '');
@@ -124,6 +127,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         if (!name.trim()) {
           throw new Error('Full name is required');
         }
+        if (!email.trim().toLowerCase().endsWith('@gmail.com')) {
+          throw new Error('Registration is restricted. You must use a valid Gmail (@gmail.com) address to sign up.');
+        }
         if (workspaceAction === 'create' && !workspaceName.trim()) {
           throw new Error('Workspace name is required to create a new workspace');
         }
@@ -131,10 +137,30 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           throw new Error('Workspace ID is required to join a workspace');
         }
 
-        const userCred = await createUserWithEmailAndPassword(auth, email, password);
         const targetWorkspaceId = workspaceAction === 'create' 
           ? workspaceName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') 
-          : workspaceId.trim();
+          : workspaceId.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+        // Verify Join Code before Firebase Account Creation to avoid orphaned user auths
+        if (workspaceAction === 'join') {
+          const workspaceRef = doc(db, 'workspaces', targetWorkspaceId);
+          const workspaceSnap = await getDoc(workspaceRef);
+
+          if (!workspaceSnap.exists()) {
+            throw new Error(`Workspace "${targetWorkspaceId}" does not exist. Please check the ID or create a new workspace.`);
+          }
+
+          const wsData = workspaceSnap.data();
+          if (wsData && wsData.joinCode) {
+            const enteredCode = joinCode.trim().toLowerCase();
+            const actualCode = wsData.joinCode.trim().toLowerCase();
+            if (enteredCode !== actualCode) {
+              throw new Error(`Incorrect Join Code for workspace "${wsData.name}". Please ask your administrator/leader for the correct code.`);
+            }
+          }
+        }
+
+        const userCred = await createUserWithEmailAndPassword(auth, email, password);
 
         await createProfileAndAuthenticate(
           userCred.user.uid,
@@ -420,28 +446,55 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   </div>
 
                   {workspaceAction === 'create' ? (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Workspace Name</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Acme Corp, Vibe Devs"
-                        value={workspaceName}
-                        onChange={(e) => setWorkspaceName(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Workspace Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Acme Corp, Vibe Devs"
+                          value={workspaceName}
+                          onChange={(e) => setWorkspaceName(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Workspace Security Join Code</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. urduja-123"
+                          value={createJoinCode}
+                          onChange={(e) => setCreateJoinCode(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">Other members will need this exact code/passcode to enter your workspace.</p>
+                      </div>
                     </div>
                   ) : (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Workspace ID / Code</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. demo-workspace, acme-corp"
-                        value={workspaceId}
-                        onChange={(e) => setWorkspaceId(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Workspace ID / Code</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. demo-workspace, acme-corp"
+                          value={workspaceId}
+                          onChange={(e) => setWorkspaceId(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Security Join Code</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ask workspace creator for passcode"
+                          value={joinCode}
+                          onChange={(e) => setJoinCode(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -455,12 +508,18 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 <input
                   type="email"
                   required
-                  placeholder="name@company.com"
+                  placeholder={isLogin ? "name@company.com" : "yourname@gmail.com"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 w-full bg-white border border-slate-200 rounded-lg py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
                 />
               </div>
+              {!isLogin && (
+                <p className="text-[10px] text-teal-600 mt-1.5 font-bold flex items-center gap-1 bg-teal-50/50 border border-teal-100/50 p-2 rounded-lg">
+                  <span className="w-1.5 h-1.5 bg-teal-500 rounded-full shrink-0"></span>
+                  Must be a Gmail account (@gmail.com) to register.
+                </p>
+              )}
             </div>
 
             <div>

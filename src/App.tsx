@@ -110,7 +110,7 @@ export default function App() {
 
     // 1. Fetch Workspace Details
     const workspaceRef = doc(db, 'workspaces', wId);
-    getDoc(workspaceRef).then((snap) => {
+    const unsubWorkspace = onSnapshot(workspaceRef, (snap) => {
       if (snap.exists()) {
         setWorkspace(snap.data() as Workspace);
       } else {
@@ -204,6 +204,7 @@ export default function App() {
     setLoading(false);
 
     return () => {
+      unsubWorkspace();
       unsubChannels();
       unsubMembers();
       unsubTasks();
@@ -498,6 +499,7 @@ export default function App() {
       <Sidebar
         userProfile={userProfile}
         workspaceName={workspace?.name || 'Synapse Project room'}
+        workspaceJoinCode={workspace?.joinCode}
         channels={channels}
         selectedChannelId={selectedChannelId}
         activeView={activeView}
@@ -525,6 +527,7 @@ export default function App() {
         {activeView === 'admin' && (
           <AdminPanel
             userProfile={userProfile}
+            workspace={workspace}
             members={members}
             channels={channels}
             tasks={tasks}

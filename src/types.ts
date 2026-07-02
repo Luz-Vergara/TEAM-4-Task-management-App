@@ -46,6 +46,7 @@ export interface Workspace {
   name: string;
   createdBy: string;
   createdAt: string;
+  joinCode?: string;
 }
 
 export interface Channel {

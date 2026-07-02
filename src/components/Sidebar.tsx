@@ -20,7 +20,8 @@ import {
   Menu, 
   X,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Key
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -28,6 +29,7 @@ import { auth } from '../firebase';
 interface SidebarProps {
   userProfile: UserProfile;
   workspaceName: string;
+  workspaceJoinCode?: string;
   channels: Channel[];
   selectedChannelId: string | null;
   activeView: 'dashboard' | 'channel' | 'admin';
@@ -42,6 +44,7 @@ interface SidebarProps {
 export default function Sidebar({
   userProfile,
   workspaceName,
+  workspaceJoinCode,
   channels,
   selectedChannelId,
   activeView,
@@ -107,8 +110,13 @@ export default function Sidebar({
               {workspaceName}
             </h2>
             <p className="text-[10px] text-teal-400 font-medium truncate flex items-center mt-0.5">
-              <Sparkles className="w-2.5 h-2.5 mr-1" /> Code: {userProfile.workspaceId}
+              <Sparkles className="w-2.5 h-2.5 mr-1 animate-pulse" /> Code: {userProfile.workspaceId}
             </p>
+            {workspaceJoinCode && (
+              <p className="text-[9px] text-slate-500 font-bold truncate flex items-center mt-0.5">
+                <Key className="w-2.5 h-2.5 mr-1 text-teal-500/80" /> Join Key: <span className="text-teal-400 ml-1 select-all font-mono">{workspaceJoinCode}</span>
+              </p>
+            )}
           </div>
         </div>
       </div>
