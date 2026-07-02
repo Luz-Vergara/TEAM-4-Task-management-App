@@ -1,0 +1,6 @@
+{
+  "name": "Task Management Application",
+  "description": "Slack-inspired task management workspace featuring kanban task boards, channel-level discussions, role-based controls, analytics dashboard, and persistent Firebase integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

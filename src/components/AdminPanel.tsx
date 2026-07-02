@@ -1,0 +1,391 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { UserProfile, UserRole, Channel, Task } from '../types';
+import { 
+  Shield, 
+  Users, 
+  Hash, 
+  Plus, 
+  Trash2, 
+  Archive, 
+  Check, 
+  Settings, 
+  Briefcase, 
+  AlertTriangle,
+  Sparkles,
+  UserPlus
+} from 'lucide-react';
+import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { logActivity } from '../utils';
+
+interface AdminPanelProps {
+  userProfile: UserProfile;
+  members: UserProfile[];
+  channels: Channel[];
+  tasks: Task[];
+  onRefreshWorkspaceData: () => void;
+}
+
+export default function AdminPanel({
+  userProfile,
+  members,
+  channels,
+  tasks,
+  onRefreshWorkspaceData
+}: AdminPanelProps) {
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [targetRole, setTargetRole] = useState<UserRole>(UserRole.MEMBER);
+  
+  // Create Channel states
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelDesc, setNewChannelDesc] = useState('');
+  const [selectedLeaderId, setSelectedLeaderId] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Manage member role change
+  const handleUpdateRole = async (userId: string, targetUserProfile: UserProfile) => {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, { role: targetRole });
+      
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'user_role_updated',
+        `Admin updated ${targetUserProfile.name}'s role to "${targetRole}"`
+      );
+
+      setEditingUserId(null);
+      onRefreshWorkspaceData();
+    } catch (err) {
+      console.error('Error updating user role:', err);
+    }
+  };
+
+  // Manage channel create
+  const handleCreateChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError('');
+    setCreateSuccess('');
+    if (!newChannelName.trim()) return;
+
+    setLoading(true);
+    try {
+      const channelId = newChannelName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const channelsRef = collection(db, 'workspaces', userProfile.workspaceId, 'channels');
+      
+      const newCh = {
+        id: channelId,
+        workspaceId: userProfile.workspaceId,
+        name: newChannelName.trim().toLowerCase(),
+        description: newChannelDesc.trim() || 'No description provided',
+        isArchived: false,
+        assignedLeaderId: selectedLeaderId,
+        createdAt: new Date().toISOString()
+      };
+
+      const chDocRef = doc(channelsRef, channelId);
+      // Wait, let's write to Firestore
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(chDocRef, newCh);
+
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'channel_created',
+        `Admin created channel #${newCh.name} with description "${newCh.description}"`
+      );
+
+      setNewChannelName('');
+      setNewChannelDesc('');
+      setSelectedLeaderId('');
+      setCreateSuccess(`Channel #${channelId} created successfully!`);
+      onRefreshWorkspaceData();
+    } catch (err: any) {
+      console.error('Error creating channel:', err);
+      setCreateError(err.message || 'Error creating channel');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manage channel archive
+  const handleArchiveChannel = async (ch: Channel) => {
+    try {
+      const chRef = doc(db, 'workspaces', userProfile.workspaceId, 'channels', ch.id);
+      await updateDoc(chRef, { isArchived: true });
+
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'channel_archived',
+        `Admin archived channel #${ch.name}`
+      );
+
+      onRefreshWorkspaceData();
+    } catch (err) {
+      console.error('Error archiving channel:', err);
+    }
+  };
+
+  // Assign Team Leader to channel
+  const handleAssignChannelLeader = async (channelId: string, leaderId: string) => {
+    try {
+      const chRef = doc(db, 'workspaces', userProfile.workspaceId, 'channels', channelId);
+      await updateDoc(chRef, { assignedLeaderId: leaderId });
+
+      const chName = channels.find((c) => c.id === channelId)?.name || channelId;
+      const leadName = members.find((m) => m.uid === leaderId)?.name || 'Unassigned';
+
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'channel_leader_assigned',
+        `Admin assigned ${leadName} as lead for channel #${chName}`
+      );
+
+      onRefreshWorkspaceData();
+    } catch (err) {
+      console.error('Error assigning leader:', err);
+    }
+  };
+
+  const getRoleBadgeColor = (role: UserRole) => {
+    switch (role) {
+      case UserRole.ADMIN:
+        return 'bg-teal-50 text-teal-600 border-teal-100';
+      case UserRole.LEADER:
+        return 'bg-amber-50 text-amber-600 border-amber-100';
+      default:
+        return 'bg-slate-100 text-slate-500 border-slate-200';
+    }
+  };
+
+  // Filter Team Leaders only
+  const teamLeaders = members.filter((m) => m.role === UserRole.LEADER);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50 text-slate-900 font-sans">
+      {/* Header section */}
+      <div className="border-b border-slate-200 pb-5">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <Shield className="w-6 h-6 text-teal-500" />
+          <span>Admin Workspace Control</span>
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Complete organizational control: manage user profiles, change structural roles, seed project channels, and deploy leader assignments.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column: Role and Member Management */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Users className="w-4 h-4 text-teal-500" />
+              <span>Team Membership & Roles</span>
+            </h2>
+
+            <div className="divide-y divide-slate-100">
+              {members.map((member) => (
+                <div key={member.uid} className="py-3 flex items-center justify-between gap-4">
+                  <div className="overflow-hidden">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-xs text-slate-800 truncate">{member.name}</span>
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 border rounded ${getRoleBadgeColor(member.role)}`}>
+                        {member.role}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">{member.email}</div>
+                  </div>
+
+                  {editingUserId === member.uid ? (
+                    <div className="flex items-center space-x-2">
+                      <select
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value as UserRole)}
+                        className="bg-slate-100 border-none rounded px-2 py-1 text-xs text-slate-700 focus:outline-none"
+                      >
+                        <option value={UserRole.MEMBER}>Member</option>
+                        <option value={UserRole.LEADER}>Team Leader</option>
+                        <option value={UserRole.ADMIN}>Admin</option>
+                      </select>
+                      <button
+                        onClick={() => handleUpdateRole(member.uid, member)}
+                        className="p-1 bg-teal-600 hover:bg-teal-500 text-white rounded transition"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setEditingUserId(null)}
+                        className="text-xs text-slate-400 hover:text-slate-700 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    /* Cannot edit oneself to prevent accidents */
+                    member.uid !== userProfile.uid && (
+                      <button
+                        onClick={() => {
+                          setEditingUserId(member.uid);
+                          setTargetRole(member.role);
+                        }}
+                        className="px-2.5 py-1 text-[10px] font-bold uppercase border border-slate-200 hover:border-slate-300 bg-slate-50 text-slate-500 hover:text-teal-600 rounded transition"
+                      >
+                        Adjust Role
+                      </button>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Channels Registry & Assignments */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Hash className="w-4 h-4 text-teal-500" />
+              <span>Channels Registry & Leader Assignments</span>
+            </h2>
+
+            <div className="divide-y divide-slate-100">
+              {channels.map((ch) => (
+                <div key={ch.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="flex items-center space-x-1.5">
+                      <Hash className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="font-bold text-xs text-slate-800 capitalize">
+                        {ch.name} {ch.isArchived && '(Archived)'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 leading-relaxed max-w-sm mt-0.5">{ch.description}</div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    {/* Leader Dropdown */}
+                    {!ch.isArchived && (
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-[10px] text-slate-400">Lead:</span>
+                        <select
+                          value={ch.assignedLeaderId || ''}
+                          onChange={(e) => handleAssignChannelLeader(ch.id, e.target.value)}
+                          className="bg-slate-100 border-none rounded px-2 py-1 text-xs text-teal-600 font-bold"
+                        >
+                          <option value="">Unassigned</option>
+                          {teamLeaders.map((lead) => (
+                            <option key={lead.uid} value={lead.uid}>
+                              {lead.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Archive button */}
+                    {!ch.isArchived && ch.name !== 'general' && (
+                      <button
+                        onClick={() => handleArchiveChannel(ch)}
+                        title="Archive Channel"
+                        className="p-1 text-slate-400 hover:text-rose-500 rounded transition hover:bg-rose-50"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Create Channel structure */}
+        <div>
+          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-sm sticky top-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-teal-500" />
+              <span>Create Channel</span>
+            </h2>
+
+            {createError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex gap-1.5 items-start animate-fade-in">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <span>{createError}</span>
+              </div>
+            )}
+
+            {createSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg flex gap-1.5 items-start animate-fade-in">
+                <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <span>{createSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateChannel} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Channel Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. testing, feedback"
+                  value={newChannelName}
+                  onChange={(e) => setNewChannelName(e.target.value)}
+                  className="w-full bg-slate-100 border-none rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                <textarea
+                  placeholder="What is the channel about?"
+                  value={newChannelDesc}
+                  onChange={(e) => setNewChannelDesc(e.target.value)}
+                  rows={3}
+                  className="w-full bg-slate-100 border-none rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Assign Team Lead</label>
+                <select
+                  value={selectedLeaderId}
+                  onChange={(e) => setSelectedLeaderId(e.target.value)}
+                  className="w-full bg-slate-100 border-none rounded-lg py-2 px-3 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="">Unassigned</option>
+                  {teamLeaders.map((lead) => (
+                    <option key={lead.uid} value={lead.uid}>
+                      {lead.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 block mt-1">
+                  Team leaders can create tasks, assign members, and update task statuses in this channel.
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !newChannelName.trim()}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-lg text-xs transition disabled:opacity-50 shadow-sm"
+              >
+                Create Channel Structure
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
