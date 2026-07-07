@@ -42,7 +42,16 @@ import NotificationModal from './components/NotificationModal';
 
 import { dispatchNotification } from './utils/notifications';
 
-import { Loader2, Sparkles, Hash, Plus, X, AlertTriangle } from 'lucide-react';
+import { Loader2, Sparkles, Hash, Plus, X, AlertTriangle, Bell, UserPlus, MessageSquare, ArrowUpRight, Trash2, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface ToastNotification {
+  id: string;
+  senderName: string;
+  details: string;
+  action: string;
+  createdAt: string;
+}
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -53,6 +62,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   // Navigation state
   const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin'>('dashboard');
@@ -225,6 +235,26 @@ export default function App() {
           if (data.createdAt > appLoadTime && !seenNotifIds.has(change.doc.id)) {
             seenNotifIds.add(change.doc.id);
             const settings = userProfile.notificationSettings || { pwaEnabled: true };
+
+            // 1. Trigger beautiful in-app toast popup instantly
+            const toastId = change.doc.id;
+            setToasts((prev) => {
+              if (prev.some((t) => t.id === toastId)) return prev;
+              return [{
+                id: toastId,
+                senderName: data.senderName,
+                details: data.details,
+                action: data.action,
+                createdAt: data.createdAt
+              }, ...prev].slice(0, 5);
+            });
+
+            // Auto-dismiss this toast after 6 seconds
+            setTimeout(() => {
+              setToasts((prev) => prev.filter((t) => t.id !== toastId));
+            }, 6000);
+
+            // 2. Trigger native browser push notification
             if (settings.pwaEnabled && 'Notification' in window && Notification.permission === 'granted') {
               try {
                 new Notification(`VibeCheck: ${data.senderName}`, {
@@ -695,6 +725,76 @@ export default function App() {
           onUpdateProfile={(updated) => setUserProfile(updated)}
         />
       )}
+
+      {/* ==================== REAL-TIME TOAST NOTIFICATION POPUPS ==================== */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
+        <AnimatePresence>
+          {toasts.map((toast) => {
+            // Get action-specific styles
+            let ActionIcon = Bell;
+            let themeClass = 'border-l-teal-500 bg-white';
+            let iconBgClass = 'bg-teal-50 text-teal-600';
+
+            if (toast.action === 'task_created') {
+              ActionIcon = Sparkles;
+              themeClass = 'border-l-teal-500 bg-white';
+              iconBgClass = 'bg-teal-50 text-teal-600';
+            } else if (toast.action === 'task_status_changed') {
+              ActionIcon = ArrowUpRight;
+              themeClass = 'border-l-amber-500 bg-white';
+              iconBgClass = 'bg-amber-50 text-amber-600';
+            } else if (toast.action === 'comment_added') {
+              ActionIcon = MessageSquare;
+              themeClass = 'border-l-blue-500 bg-white';
+              iconBgClass = 'bg-blue-50 text-blue-600';
+            } else if (toast.action === 'task_deleted') {
+              ActionIcon = Trash2;
+              themeClass = 'border-l-rose-500 bg-white';
+              iconBgClass = 'bg-rose-50 text-rose-600';
+            } else if (toast.action === 'user_joined') {
+              ActionIcon = UserPlus;
+              themeClass = 'border-l-emerald-500 bg-white';
+              iconBgClass = 'bg-emerald-50 text-emerald-600';
+            }
+
+            return (
+              <motion.div
+                key={toast.id}
+                layout
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 100, scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                className={`pointer-events-auto flex gap-3 border-l-4 shadow-xl border border-slate-100/80 rounded-xl p-4 w-full relative overflow-hidden group ${themeClass}`}
+              >
+                {/* Icon wrapper */}
+                <div className={`p-2 rounded-lg shrink-0 flex items-center justify-center h-9 w-9 ${iconBgClass}`}>
+                  <ActionIcon className="w-5 h-5" />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 pr-4">
+                  <div className="font-bold text-slate-800 text-xs mb-0.5 flex items-center justify-between">
+                    <span>{toast.senderName}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Just now</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                    {toast.details}
+                  </p>
+                </div>
+
+                {/* Dismiss button */}
+                <button
+                  onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                  className="absolute top-3 right-3 p-1 rounded-md text-slate-300 hover:text-slate-600 hover:bg-slate-50 transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
