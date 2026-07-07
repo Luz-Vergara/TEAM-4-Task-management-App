@@ -58,11 +58,15 @@ export default function NotificationModal({
     if (!isOpen || !userProfile) return;
 
     const notifRef = collection(db, 'workspaces', userProfile.workspaceId, 'notifications');
-    const q = query(
-      notifRef,
-      where('recipientUid', '==', userProfile.uid),
-      orderBy('createdAt', 'desc')
-    );
+    // Workspace Administrators can see all notification dispatches in the workspace to monitor status,
+    // while standard users only see notifications dispatched to themselves.
+    const q = userProfile.role === 'admin'
+      ? query(notifRef, orderBy('createdAt', 'desc'))
+      : query(
+          notifRef,
+          where('recipientUid', '==', userProfile.uid),
+          orderBy('createdAt', 'desc')
+        );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: WorkspaceNotification[] = [];
@@ -388,7 +392,14 @@ export default function NotificationModal({
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-bold text-slate-800">{notif.senderName}</span>
+                                <span className="text-xs font-bold text-slate-800">
+                                  {notif.senderName}
+                                  {userProfile.role === 'admin' && (
+                                    <span className="text-slate-450 font-normal">
+                                      {" "}&rarr; notified <strong>{notif.recipientName}</strong> ({notif.recipientEmail})
+                                    </span>
+                                  )}
+                                </span>
                                 <span className="text-[10px] text-slate-400">
                                   {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>

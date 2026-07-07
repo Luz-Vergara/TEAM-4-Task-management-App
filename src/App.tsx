@@ -158,8 +158,22 @@ export default function App() {
     const usersQuery = query(collection(db, 'users'), where('workspaceId', '==', wId));
     const unsubMembers = onSnapshot(usersQuery, (snapshot) => {
       const mList: UserProfile[] = [];
+      const seenEmails = new Set<string>();
+      const seenUids = new Set<string>();
       snapshot.forEach((doc) => {
-        mList.push(doc.data() as UserProfile);
+        const profile = doc.data() as UserProfile;
+        const uid = profile.uid || doc.id;
+        const emailKey = (profile.email || '').toLowerCase().trim();
+        
+        if (seenUids.has(uid)) return;
+        if (emailKey && seenEmails.has(emailKey)) return;
+        
+        seenUids.add(uid);
+        if (emailKey) {
+          seenEmails.add(emailKey);
+        }
+        
+        mList.push({ ...profile, uid });
       });
       setMembers(mList);
     });

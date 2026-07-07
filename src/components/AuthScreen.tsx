@@ -149,9 +149,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           throw new Error('Full name is required');
         }
         const lowerEmail = email.trim().toLowerCase();
-        const isAdminEmail = lowerEmail === 'lmvergara@tesda.com' || lowerEmail === 'lmvergara@tesda.gov.ph';
-        if (!isAdminEmail && !lowerEmail.endsWith('@gmail.com')) {
-          throw new Error('Registration is restricted. You must use a valid Gmail (@gmail.com) address to sign up.');
+        const isAllowedDomain = lowerEmail.endsWith('@gmail.com') || 
+                               lowerEmail.endsWith('@tesda.gov.ph') || 
+                               lowerEmail.endsWith('@tesda.com');
+        if (!isAllowedDomain) {
+          throw new Error('Registration is restricted. You must use a valid Gmail (@gmail.com) or TESDA (@tesda.gov.ph, @tesda.com) address to sign up.');
         }
         if (workspaceAction === 'create' && !workspaceName.trim()) {
           throw new Error('Workspace name is required to create a new workspace');

@@ -151,7 +151,7 @@ export async function dispatchNotification(
   workspaceId: string,
   action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted',
   details: string,
-  triggerUser: { uid: string; name: string },
+  triggerUser: { uid: string; name: string; email?: string },
   task?: Task
 ) {
   try {
@@ -161,14 +161,30 @@ export async function dispatchNotification(
     
     const members: UserProfile[] = [];
     querySnapshot.forEach((doc) => {
-      members.push(doc.data() as UserProfile);
+      const data = doc.data();
+      members.push({
+        ...data,
+        uid: doc.id || data.uid // Ensure we fall back to document ID which is the authenticated uid
+      } as UserProfile);
     });
 
     const notificationsRef = collection(db, 'workspaces', workspaceId, 'notifications');
 
+    // Resolve the triggering user's email address if not provided in the payload
+    const triggerEmail = triggerUser.email || members.find(m => m.uid === triggerUser.uid)?.email;
+
     for (const member of members) {
-      // Prevent notifying users of their own actions
-      if (member.uid === triggerUser.uid) {
+      // Prevent notifying users of their own actions by matching both UID and email address.
+      // However, if the user has a TESDA email address, we do NOT skip them. This guarantees
+      // that they receive the notification on their TESDA emails for both active logs and testing verification.
+      const isTesda = member.email && (
+        member.email.toLowerCase().endsWith('@tesda.gov.ph') || 
+        member.email.toLowerCase().endsWith('@tesda.com')
+      );
+      const isSelf = (member.uid === triggerUser.uid || 
+                     (member.email && triggerEmail && member.email.toLowerCase() === triggerEmail.toLowerCase())) && !isTesda;
+      
+      if (isSelf) {
         continue;
       }
 
