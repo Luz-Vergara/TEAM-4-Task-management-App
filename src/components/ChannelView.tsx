@@ -160,14 +160,14 @@ export default function ChannelView({
         <div>
           <div className="flex items-center space-x-2">
             <Hash className="w-5 h-5 text-teal-500" />
-            <h1 className="text-lg font-bold text-slate-900 capitalize">{channel.name}</h1>
+            <h1 className="text-xl font-bold text-slate-900 capitalize">{channel.name}</h1>
             {channel.assignedLeaderId && (
               <span className="text-[10px] bg-teal-500/10 text-teal-600 px-2 py-0.5 rounded border border-teal-500/20 font-bold ml-2">
                 Lead Assigned
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5 truncate max-w-2xl">{channel.description}</p>
+          <p className="text-base text-slate-500 mt-0.5 truncate max-w-2xl">{channel.description}</p>
         </div>
 
         {/* Action Controls & Tab Selector */}
@@ -175,24 +175,24 @@ export default function ChannelView({
           <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
             <button
               onClick={() => setActiveTab('tasks')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-base font-semibold transition ${
                 activeTab === 'tasks'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              <CheckSquare className="w-3.5 h-3.5" />
+              <CheckSquare className="w-4 h-4" />
               <span>Tasks Board</span>
             </button>
             <button
               onClick={() => setActiveTab('discussion')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-base font-semibold transition ${
                 activeTab === 'discussion'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5" />
+              <MessageSquare className="w-4 h-4" />
               <span>Discussion chat</span>
             </button>
           </div>

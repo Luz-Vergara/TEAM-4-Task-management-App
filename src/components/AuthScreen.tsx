@@ -71,12 +71,21 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       await seedWorkspaceChannels(finalWorkspaceId, userRole === UserRole.LEADER ? uid : '');
     }
 
+    let finalRole = userRole;
+    if (
+      userEmail && 
+      (userEmail.toLowerCase() === 'lmvergara@tesda.com' || 
+       userEmail.toLowerCase() === 'lmvergara@tesda.gov.ph')
+    ) {
+      finalRole = UserRole.ADMIN;
+    }
+
     // 2. Write/Update User Profile
     const profile: UserProfile = {
       uid,
       name: userName,
       email: userEmail,
-      role: userRole,
+      role: finalRole,
       workspaceId: finalWorkspaceId,
       joinedAt: new Date().toISOString()
     };
@@ -109,7 +118,19 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
         
         if (userDoc.exists()) {
-          onAuthSuccess(userDoc.data() as UserProfile);
+          const profile = userDoc.data() as UserProfile;
+          if (
+            profile.email && 
+            (profile.email.toLowerCase() === 'lmvergara@tesda.com' || 
+             profile.email.toLowerCase() === 'lmvergara@tesda.gov.ph') && 
+            profile.role !== UserRole.ADMIN
+          ) {
+            const updatedProfile = { ...profile, role: UserRole.ADMIN };
+            await setDoc(doc(db, 'users', userCred.user.uid), updatedProfile);
+            onAuthSuccess(updatedProfile);
+          } else {
+            onAuthSuccess(profile);
+          }
         } else {
           // If Firestore profile doesn't exist but auth exists, build a member profile
           await createProfileAndAuthenticate(
@@ -127,7 +148,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         if (!name.trim()) {
           throw new Error('Full name is required');
         }
-        if (!email.trim().toLowerCase().endsWith('@gmail.com')) {
+        const lowerEmail = email.trim().toLowerCase();
+        const isAdminEmail = lowerEmail === 'lmvergara@tesda.com' || lowerEmail === 'lmvergara@tesda.gov.ph';
+        if (!isAdminEmail && !lowerEmail.endsWith('@gmail.com')) {
           throw new Error('Registration is restricted. You must use a valid Gmail (@gmail.com) address to sign up.');
         }
         if (workspaceAction === 'create' && !workspaceName.trim()) {
@@ -243,7 +266,19 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
 
       if (userDoc.exists()) {
-        onAuthSuccess(userDoc.data() as UserProfile);
+        const profile = userDoc.data() as UserProfile;
+        if (
+          profile.email && 
+          (profile.email.toLowerCase() === 'lmvergara@tesda.com' || 
+           profile.email.toLowerCase() === 'lmvergara@tesda.gov.ph') && 
+          profile.role !== UserRole.ADMIN
+        ) {
+          const updatedProfile = { ...profile, role: UserRole.ADMIN };
+          await setDoc(doc(db, 'users', userCred.user.uid), updatedProfile);
+          onAuthSuccess(updatedProfile);
+        } else {
+          onAuthSuccess(profile);
+        }
       } else {
         await createProfileAndAuthenticate(
           userCred.user.uid,

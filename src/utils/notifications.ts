@@ -167,6 +167,11 @@ export async function dispatchNotification(
     const notificationsRef = collection(db, 'workspaces', workspaceId, 'notifications');
 
     for (const member of members) {
+      // Prevent notifying users of their own actions
+      if (member.uid === triggerUser.uid) {
+        continue;
+      }
+
       // Get notification preferences, fallback to defaults if not set
       const settings = member.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS;
 

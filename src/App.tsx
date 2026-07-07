@@ -52,6 +52,7 @@ export default function App() {
   const [members, setMembers] = useState<UserProfile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
 
   // Navigation state
   const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin'>('dashboard');
@@ -63,6 +64,7 @@ export default function App() {
   const [taskModalInitialStatus, setTaskModalInitialStatus] = useState<TaskStatus>(TaskStatus.TODO);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [parentChannelId, setParentChannelId] = useState<string | null>(null);
 
   // Simple Add Channel states
   const [newChName, setNewChName] = useState('');
@@ -81,7 +83,20 @@ export default function App() {
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-          setUserProfile(userDoc.data() as UserProfile);
+          const profile = userDoc.data() as UserProfile;
+          const userEmail = profile.email || user.email || '';
+          if (
+            userEmail && 
+            (userEmail.toLowerCase() === 'lmvergara@tesda.com' || 
+             userEmail.toLowerCase() === 'lmvergara@tesda.gov.ph') && 
+            profile.role !== UserRole.ADMIN
+          ) {
+            const updatedProfile = { ...profile, role: UserRole.ADMIN };
+            await setDoc(userDocRef, updatedProfile);
+            setUserProfile(updatedProfile);
+          } else {
+            setUserProfile(profile);
+          }
         } else {
           // Fallback if auth is live but profile isn't indexed yet
           setUserProfile(null);
@@ -180,6 +195,16 @@ export default function App() {
     const appLoadTime = new Date().toISOString();
     const seenNotifIds = new Set<string>();
     const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
+      // Calculate unread notifications count
+      let unreadCount = 0;
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (!data.isRead) {
+          unreadCount++;
+        }
+      });
+      setUnreadNotifsCount(unreadCount);
+
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data() as any;
@@ -420,7 +445,8 @@ export default function App() {
         description: newChDesc.trim() || 'No description',
         isArchived: false,
         assignedLeaderId: '',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        parentId: parentChannelId || undefined
       };
 
       await setDoc(doc(channelsRef, channelId), data);
@@ -504,9 +530,11 @@ export default function App() {
         selectedChannelId={selectedChannelId}
         activeView={activeView}
         members={members}
+        unreadNotifsCount={unreadNotifsCount}
         onSelectChannel={handleSelectChannel}
         onSelectView={handleSelectView}
-        onAddChannel={() => setIsCreateChannelOpen(true)}
+        onAddChannel={() => { setParentChannelId(null); setIsCreateChannelOpen(true); }}
+        onAddSubChannel={(parentId) => { setParentChannelId(parentId); setIsCreateChannelOpen(true); }}
         onLogout={handleLogout}
         onOpenNotifications={() => setIsNotificationModalOpen(true)}
       />
@@ -576,8 +604,15 @@ export default function App() {
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center space-x-2 text-teal-500">
                 <Hash className="w-5 h-5" />
-                <h3 className="font-bold text-slate-800 text-sm">Create a Project Channel</h3>
+                <h3 className="font-bold text-slate-800 text-sm">
+                  {parentChannelId ? 'Create a Sub-channel' : 'Create a Project Channel'}
+                </h3>
               </div>
+              {parentChannelId && (
+                <p className="text-xs text-slate-500 font-medium">
+                  Parent: #{channels.find(c => c.id === parentChannelId)?.name}
+                </p>
+              )}
               <button
                 onClick={() => setIsCreateChannelOpen(false)}
                 className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-800 transition cursor-pointer"

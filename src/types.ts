@@ -57,6 +57,8 @@ export interface Channel {
   isArchived: boolean;
   assignedLeaderId: string; // ID of Team Leader assigned to this channel
   createdAt: string;
+  parentId?: string; // Optional parent channel ID for sub-projects
+  displayOrder?: number; // Order in the sidebar
 }
 
 export interface Attachment {
