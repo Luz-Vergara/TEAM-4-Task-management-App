@@ -15,6 +15,7 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase
 import { auth, db } from '../firebase';
 import { UserRole, UserProfile } from '../types';
 import { DEMO_USERS, seedWorkspaceChannels, logActivity } from '../utils';
+import { dispatchNotification, DEFAULT_NOTIFICATION_SETTINGS } from '../utils/notifications';
 import { motion } from 'motion/react';
 import { Compass, Key, Mail, User, Shield, Users, Layers, AlertTriangle, Loader2 } from 'lucide-react';
 import configData from '../../firebase-applet-config.json';
@@ -87,7 +88,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       email: userEmail,
       role: finalRole,
       workspaceId: finalWorkspaceId,
-      joinedAt: new Date().toISOString()
+      joinedAt: new Date().toISOString(),
+      notificationSettings: DEFAULT_NOTIFICATION_SETTINGS
     };
 
     await setDoc(doc(db, 'users', uid), profile);
@@ -100,6 +102,18 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       isNewWorkspace ? 'workspace_created' : 'workspace_joined',
       `${userName} joined workspace "${wName || workspaceName || finalWorkspaceId}" as ${userRole}`
     );
+
+    // 4. Dispatch Workspace Notification to alert members and trigger email dispatches
+    try {
+      await dispatchNotification(
+        finalWorkspaceId,
+        'user_joined',
+        `${userName} (${userEmail}) entered the workspace space as ${finalRole}`,
+        { uid, name: userName, email: userEmail }
+      );
+    } catch (notifErr) {
+      console.error('Failed to dispatch user join notification:', notifErr);
+    }
 
     onAuthSuccess(profile);
   };

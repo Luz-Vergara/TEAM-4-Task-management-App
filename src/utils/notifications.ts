@@ -56,6 +56,12 @@ function generateEmailBody(
       actionDescription = `${senderName} permanently deleted/archived a task from the active queue.`;
       accentColor = '#f43f5e'; // Rose
       break;
+    case 'user_joined':
+      subject = `[VibeCheck] New Team Member Joined: ${senderName}`;
+      titleText = 'Welcome New Member';
+      actionDescription = `${senderName} has entered the workspace space.`;
+      accentColor = '#0f766e'; // Deep Teal
+      break;
     default:
       subject = `[VibeCheck] Activity Notification`;
       titleText = 'Workspace Activity Alert';
@@ -149,7 +155,7 @@ function generateEmailBody(
  */
 export async function dispatchNotification(
   workspaceId: string,
-  action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted',
+  action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted' | 'user_joined',
   details: string,
   triggerUser: { uid: string; name: string; email?: string },
   task?: Task
@@ -173,7 +179,7 @@ export async function dispatchNotification(
     // Resolve the triggering user's email address if not provided in the payload
     const triggerEmail = triggerUser.email || members.find(m => m.uid === triggerUser.uid)?.email;
 
-    for (const member of members) {
+    const dispatchPromises = members.map(async (member) => {
       // Prevent notifying users of their own actions by matching both UID and email address.
       // However, if the user has a TESDA email address, we do NOT skip them. This guarantees
       // that they receive the notification on their TESDA emails for both active logs and testing verification.
@@ -185,7 +191,7 @@ export async function dispatchNotification(
                      (member.email && triggerEmail && member.email.toLowerCase() === triggerEmail.toLowerCase())) && !isTesda;
       
       if (isSelf) {
-        continue;
+        return;
       }
 
       // Get notification preferences, fallback to defaults if not set
@@ -197,8 +203,9 @@ export async function dispatchNotification(
       if (action === 'task_status_changed' && settings.onTaskStatusChanged) isEnabledForAction = true;
       if (action === 'comment_added' && settings.onCommentAdded) isEnabledForAction = true;
       if (action === 'task_deleted' && settings.onTaskDeleted) isEnabledForAction = true;
+      if (action === 'user_joined') isEnabledForAction = true; // Always enabled for user joined alerts!
 
-      if (!isEnabledForAction) continue;
+      if (!isEnabledForAction) return;
 
       // Generate the beautiful HTML email content and subject
       const emailContent = generateEmailBody(member.name, triggerUser.name, action, details, task);
@@ -226,7 +233,7 @@ export async function dispatchNotification(
       // Trigger real email dispatch via our Node.js back-end proxy
       if (settings.emailEnabled && member.email) {
         try {
-          fetch('/api/send-email', {
+          const res = await fetch('/api/send-email', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -237,18 +244,16 @@ export async function dispatchNotification(
               subject: emailContent.subject,
               html: emailContent.html,
             }),
-          }).then(res => res.json())
-            .then(data => {
-              console.log('Email dispatch response:', data);
-            })
-            .catch(e => {
-              console.error('Email fetch error:', e);
-            });
+          });
+          const data = await res.json();
+          console.log(`Email dispatch response for ${member.email}:`, data);
         } catch (emailErr) {
-          console.error('Error initiating email dispatch fetch:', emailErr);
+          console.error(`Error dispatching email for ${member.email}:`, emailErr);
         }
       }
-    }
+    });
+
+    await Promise.all(dispatchPromises);
   } catch (err) {
     console.error('Error dispatching notifications:', err);
   }
