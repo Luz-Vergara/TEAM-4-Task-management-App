@@ -58,6 +58,7 @@ export default function ChannelView({
   const [messages, setMessages] = useState<Comment[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Filter tasks belonging only to this channel
@@ -156,43 +157,43 @@ export default function ChannelView({
   return (
     <div className="flex-1 flex flex-col bg-white text-slate-900 font-sans h-full overflow-hidden">
       {/* Channel Header Banner */}
-      <div className="p-4 md:px-6 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
+      <div className="p-3 md:px-5 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
         <div>
           <div className="flex items-center space-x-2">
-            <Hash className="w-5 h-5 text-teal-500" />
-            <h1 className="text-xl font-bold text-slate-900 capitalize">{channel.name}</h1>
+            <Hash className="w-4 h-4 text-teal-500" />
+            <h1 className="text-base font-bold text-slate-900 capitalize">{channel.name}</h1>
             {channel.assignedLeaderId && (
-              <span className="text-[10px] bg-teal-500/10 text-teal-600 px-2 py-0.5 rounded border border-teal-500/20 font-bold ml-2">
+              <span className="text-[9px] bg-teal-500/10 text-teal-600 px-1.5 py-0.5 rounded border border-teal-500/20 font-bold ml-2">
                 Lead Assigned
               </span>
             )}
           </div>
-          <p className="text-base text-slate-500 mt-0.5 truncate max-w-2xl">{channel.description}</p>
+          <p className="text-xs text-slate-500 mt-0.5 truncate max-w-2xl">{channel.description}</p>
         </div>
 
         {/* Action Controls & Tab Selector */}
         <div className="flex items-center space-x-3">
-          <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
+          <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex">
             <button
               onClick={() => setActiveTab('tasks')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-base font-semibold transition ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 activeTab === 'tasks'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              <CheckSquare className="w-4 h-4" />
+              <CheckSquare className="w-3.5 h-3.5" />
               <span>Tasks Board</span>
             </button>
             <button
               onClick={() => setActiveTab('discussion')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-base font-semibold transition ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 activeTab === 'discussion'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-3.5 h-3.5" />
               <span>Discussion chat</span>
             </button>
           </div>
@@ -276,68 +277,95 @@ export default function ChannelView({
                       const todayStr = new Date().toISOString().split('T')[0];
                       const isOverdue = task.status !== TaskStatus.COMPLETED && task.dueDate && task.dueDate < todayStr;
                       const hasUserPermissionToTransition = canModifyTasks || task.assignedUserId === userProfile.uid;
+                      const isExpanded = expandedTaskId === task.id;
 
                       return (
                         <div
                           key={task.id}
-                          className="bg-white hover:bg-slate-50 p-4 rounded-xl border border-slate-200 hover:border-teal-300 shadow-sm transition duration-150 relative group flex flex-col justify-between cursor-pointer space-y-3"
-                          onClick={() => onSelectTask(task)}
+                          className={`bg-white hover:bg-slate-50 rounded-xl border border-slate-200 hover:border-teal-300 shadow-sm transition duration-150 relative group flex flex-col justify-between cursor-pointer ${
+                            isExpanded ? 'p-3.5 space-y-2.5' : 'p-2.5'
+                          }`}
+                          onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
                         >
-                          {/* Title & Options */}
-                          <div className="space-y-1">
-                            <div className="flex items-start justify-between gap-1.5">
-                              <h4 className="font-bold text-xs leading-snug text-slate-900 group-hover:text-teal-600 transition line-clamp-2">
-                                {task.title}
-                              </h4>
-                            </div>
-                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                              {task.description}
-                            </p>
+                          {/* Title & Expand Indicator */}
+                          <div className="flex items-start justify-between gap-1.5">
+                            <h4 className="font-semibold text-xs leading-snug text-slate-900 group-hover:text-teal-600 transition flex-1 min-w-0">
+                              {task.title}
+                            </h4>
+                            <ChevronRight 
+                              className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 mt-0.5 ${
+                                isExpanded ? 'rotate-90 text-teal-500' : ''
+                              }`} 
+                            />
                           </div>
 
-                          {/* Priority, due dates, assignee row */}
-                          <div className="flex items-center justify-between border-t border-slate-100 pt-2 shrink-0">
-                            <div className="flex flex-wrap gap-1 items-center">
-                              {/* Priority badge */}
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${getPriorityColor(task.priority)}`}>
-                                {task.priority}
-                              </span>
+                          {/* Collapsible Details */}
+                          {isExpanded && (
+                            <>
+                              <p className="text-[11px] text-slate-500 leading-relaxed">
+                                {task.description || <span className="italic text-slate-400">No description.</span>}
+                              </p>
 
-                              {/* Overdue Warning / Calendar */}
-                              {task.dueDate && (
-                                <span className={`flex items-center space-x-1 text-[10px] ${
-                                  isOverdue ? 'text-rose-500 font-semibold' : 'text-slate-400'
-                                }`}>
-                                  <Calendar className="w-3 h-3" />
-                                  <span>{formatDate(task.dueDate)}</span>
-                                </span>
-                              )}
-                            </div>
+                              {/* Priority, due dates, assignee row */}
+                              <div className="flex items-center justify-between border-t border-slate-100 pt-2 shrink-0">
+                                <div className="flex flex-wrap gap-1 items-center">
+                                  {/* Priority badge */}
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${getPriorityColor(task.priority)}`}>
+                                    {task.priority}
+                                  </span>
 
-                            {/* Assignee Circle */}
-                            <div 
-                              title={`Assigned to ${getMemberName(task.assignedUserId)}`}
-                              className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-600 flex items-center justify-center shrink-0"
-                            >
-                              {getMemberInitials(task.assignedUserId)}
-                            </div>
-                          </div>
+                                  {/* Overdue Warning / Calendar */}
+                                  {task.dueDate && (
+                                    <span className={`flex items-center space-x-1 text-[10px] ${
+                                      isOverdue ? 'text-rose-500 font-semibold' : 'text-slate-400'
+                                    }`}>
+                                      <Calendar className="w-3 h-3" />
+                                      <span>{formatDate(task.dueDate)}</span>
+                                    </span>
+                                  )}
+                                </div>
 
-                          {/* Quick Change Status Dropdown for board navigation */}
-                          {hasUserPermissionToTransition && (
-                            <div className="flex items-center justify-between border-t border-slate-100 pt-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-[10px] text-slate-400">Quick Status:</span>
-                              <select
-                                value={task.status}
-                                onChange={(e) => onUpdateTaskStatus(task, e.target.value as TaskStatus)}
-                                className="bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-teal-600 focus:outline-none cursor-pointer font-bold uppercase tracking-wider"
-                              >
-                                <option value={TaskStatus.TODO}>To Do</option>
-                                <option value={TaskStatus.IN_PROGRESS}>In Prog</option>
-                                <option value={TaskStatus.REVIEW}>Review</option>
-                                <option value={TaskStatus.COMPLETED}>Done</option>
-                              </select>
-                            </div>
+                                {/* Assignee Circle */}
+                                <div 
+                                  title={`Assigned to ${getMemberName(task.assignedUserId)}`}
+                                  className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-600 flex items-center justify-center shrink-0"
+                                >
+                                  {getMemberInitials(task.assignedUserId)}
+                                </div>
+                              </div>
+
+                              {/* Quick Change Status Dropdown for board navigation */}
+                              <div className="flex items-center justify-between border-t border-slate-100 pt-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {hasUserPermissionToTransition ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-slate-400">Quick Status:</span>
+                                    <select
+                                      value={task.status}
+                                      onChange={(e) => onUpdateTaskStatus(task, e.target.value as TaskStatus)}
+                                      className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[10px] text-teal-600 focus:outline-none cursor-pointer font-bold uppercase tracking-wider"
+                                    >
+                                      <option value={TaskStatus.TODO}>To Do</option>
+                                      <option value={TaskStatus.IN_PROGRESS}>In Prog</option>
+                                      <option value={TaskStatus.REVIEW}>Review</option>
+                                      <option value={TaskStatus.COMPLETED}>Done</option>
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div />
+                                )}
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectTask(task);
+                                  }}
+                                  className="flex items-center space-x-0.5 text-[10px] text-teal-600 hover:text-teal-700 font-bold transition px-1.5 py-0.5 hover:bg-teal-50 rounded"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>Details</span>
+                                </button>
+                              </div>
+                            </>
                           )}
                         </div>
                       );
