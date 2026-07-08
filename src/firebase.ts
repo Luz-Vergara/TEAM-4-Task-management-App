@@ -6,6 +6,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // In AI Studio, the firebase config is saved in firebase-applet-config.json.
 // Let's import it or use a fallback for safety.
@@ -23,6 +24,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 // Use the custom firestoreDatabaseId if provided in configuration, otherwise fallback to standard default database
 export const db = configData.firestoreDatabaseId 

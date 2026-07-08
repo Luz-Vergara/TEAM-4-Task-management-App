@@ -27,9 +27,10 @@ import {
   ActivityLog, 
   TaskStatus, 
   TaskPriority, 
-  UserRole 
+  UserRole,
+  Comment
 } from './types';
-import { logActivity } from './utils';
+import { logActivity, parseSizeToBytes } from './utils';
 
 // UI Components
 import AuthScreen from './components/AuthScreen';
@@ -60,6 +61,7 @@ export default function App() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [members, setMembers] = useState<UserProfile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
@@ -198,6 +200,16 @@ export default function App() {
       setTasks(tList);
     });
 
+    // 4.5. Real-time Comments listener (for storage tracking)
+    const commentsRef = collection(db, 'workspaces', wId, 'comments');
+    const unsubComments = onSnapshot(commentsRef, (snapshot) => {
+      const cList: Comment[] = [];
+      snapshot.forEach((doc) => {
+        cList.push({ id: doc.id, ...doc.data() } as Comment);
+      });
+      setComments(cList);
+    });
+
     // 5. Real-time Logs listener
     const logsRef = collection(db, 'workspaces', wId, 'logs');
     const logsQuery = query(logsRef, orderBy('createdAt', 'desc'));
@@ -277,6 +289,7 @@ export default function App() {
       unsubChannels();
       unsubMembers();
       unsubTasks();
+      unsubComments();
       unsubLogs();
       unsubNotifs();
     };
@@ -563,6 +576,63 @@ export default function App() {
   // Active channel details object
   const activeChannelObj = channels.find((c) => c.id === selectedChannelId);
 
+  // Real-time Firebase Storage calculations
+  const totalStorageBytes = (() => {
+    let totalBytes = 0;
+    tasks.forEach(task => {
+      if (task.attachments) {
+        task.attachments.forEach(att => {
+          if (att.type === 'file') {
+            totalBytes += parseSizeToBytes(att.size, att.rawSize);
+          }
+        });
+      }
+    });
+    comments.forEach(comment => {
+      if (comment.attachments) {
+        comment.attachments.forEach(att => {
+          if (att.type === 'file') {
+            totalBytes += parseSizeToBytes(att.size, att.rawSize);
+          }
+        });
+      }
+    });
+    return totalBytes;
+  })();
+
+  const allUploadedAttachments = (() => {
+    const list: any[] = [];
+    tasks.forEach(task => {
+      if (task.attachments) {
+        task.attachments.forEach(att => {
+          if (att.type === 'file') {
+            list.push({
+              ...att,
+              sourceType: 'task',
+              sourceId: task.id,
+              sourceTitle: task.title,
+            });
+          }
+        });
+      }
+    });
+    comments.forEach(comment => {
+      if (comment.attachments) {
+        comment.attachments.forEach(att => {
+          if (att.type === 'file') {
+            list.push({
+              ...att,
+              sourceType: 'comment',
+              sourceId: comment.taskId || '',
+              sourceTitle: comment.taskId ? 'Task Comment' : 'Channel Chat',
+            });
+          }
+        });
+      }
+    });
+    return list;
+  })();
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row font-sans overflow-hidden">
       {/* Sidebar navigation */}
@@ -575,6 +645,8 @@ export default function App() {
         activeView={activeView}
         members={members}
         unreadNotifsCount={unreadNotifsCount}
+        storageBytes={totalStorageBytes}
+        allAttachments={allUploadedAttachments}
         onSelectChannel={handleSelectChannel}
         onSelectView={handleSelectView}
         onAddChannel={() => { setParentChannelId(null); setIsCreateChannelOpen(true); }}

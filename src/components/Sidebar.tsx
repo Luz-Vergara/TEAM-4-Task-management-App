@@ -21,10 +21,15 @@ import {
   X,
   ChevronRight,
   Sparkles,
-  Key
+  Key,
+  HardDrive,
+  Info,
+  ExternalLink,
+  AlertTriangle
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface SidebarProps {
   userProfile: UserProfile;
@@ -35,6 +40,8 @@ interface SidebarProps {
   activeView: 'dashboard' | 'channel' | 'admin';
   members: UserProfile[];
   unreadNotifsCount?: number;
+  storageBytes?: number;
+  allAttachments?: any[];
   onSelectChannel: (channelId: string) => void;
   onSelectView: (view: 'dashboard' | 'channel' | 'admin') => void;
   onAddChannel: () => void;
@@ -52,6 +59,8 @@ export default function Sidebar({
   activeView,
   members,
   unreadNotifsCount = 0,
+  storageBytes = 0,
+  allAttachments = [],
   onSelectChannel,
   onSelectView,
   onAddChannel,
@@ -60,6 +69,15 @@ export default function Sidebar({
   onOpenNotifications
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showStorageBreakdown, setShowStorageBreakdown] = useState(false);
+
+  const formatStorageSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
@@ -271,6 +289,52 @@ export default function Sidebar({
             ))}
           </div>
         </div>
+
+        {/* Firebase Storage Monitor Section */}
+        <div className="pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">
+            <span className="flex items-center gap-1.5">
+              <HardDrive className="w-3.5 h-3.5 text-teal-400" /> Storage Monitor
+            </span>
+            <button 
+              onClick={() => setShowStorageBreakdown(true)}
+              className="text-[10px] text-teal-400 hover:text-teal-300 transition hover:underline cursor-pointer"
+            >
+              Breakdown
+            </button>
+          </div>
+          <div className="bg-slate-950/30 border border-slate-800/60 p-3 rounded-lg font-sans">
+            <div className="flex justify-between items-center text-xs text-slate-300 mb-1.5">
+              <span className="font-semibold text-slate-200">
+                {formatStorageSize(storageBytes)}
+              </span>
+              <span className="text-[10px] text-slate-500 font-bold">
+                of 5.0 GB limit
+              </span>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${
+                  (storageBytes / (5 * 1024 * 1024 * 1024)) > 0.85 
+                    ? 'bg-rose-500' 
+                    : (storageBytes / (5 * 1024 * 1024 * 1024)) > 0.60 
+                    ? 'bg-amber-500' 
+                    : 'bg-teal-500'
+                }`}
+                style={{ width: `${Math.min((storageBytes / (5 * 1024 * 1024 * 1024)) * 100, 100)}%` }}
+              />
+            </div>
+            
+            <div className="flex items-start gap-1.5 mt-2 text-[9px] text-slate-500 leading-normal">
+              <Info className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+              <span>
+                To avoid payments, stay under 5.0 GB limit. Only real uploaded files consume storage.
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Footer Profile Details */}
@@ -344,6 +408,113 @@ export default function Sidebar({
           </div>
         </div>
       )}
+
+      {/* Storage Breakdown Modal */}
+      <AnimatePresence>
+        {showStorageBreakdown && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+              onClick={() => setShowStorageBreakdown(false)}
+            />
+            
+            {/* Modal Card */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-slate-900 border border-slate-800 text-slate-300 w-full max-w-xl rounded-xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10 font-sans"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-5 h-5 text-teal-400" />
+                  <div>
+                    <h3 className="font-bold text-white text-base">Firebase Storage Breakdown</h3>
+                    <p className="text-xs text-slate-400">Manage uploaded deliverables and monitor the 5 GB free tier limit</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowStorageBreakdown(false)}
+                  className="p-1 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Stats Banner */}
+              <div className="p-5 bg-slate-950/40 border-b border-slate-800/50 grid grid-cols-3 gap-4 text-center">
+                <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/40">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Total Space Used</div>
+                  <div className="text-lg font-extrabold text-teal-400 mt-1">{formatStorageSize(storageBytes)}</div>
+                </div>
+                <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/40">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Free Limit</div>
+                  <div className="text-lg font-extrabold text-slate-400 mt-1">5.0 GB</div>
+                </div>
+                <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/40">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Files Count</div>
+                  <div className="text-lg font-extrabold text-white mt-1">{allAttachments.length}</div>
+                </div>
+              </div>
+              
+              {/* Body */}
+              <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Workspace Uploaded Files</h4>
+                
+                {allAttachments.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-slate-500 italic">
+                    No files uploaded to Firebase Storage yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/50 border border-slate-800 rounded-lg overflow-hidden bg-slate-950/20">
+                    {allAttachments.map((file) => (
+                      <div key={file.id} className="p-3.5 flex items-center justify-between gap-4 hover:bg-slate-850/40 transition">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-white truncate" title={file.name}>
+                            {file.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-slate-400 flex-wrap">
+                            <span className="bg-slate-850 px-1.5 py-0.5 rounded text-[10px] text-slate-300">
+                              {file.size || 'Unknown Size'}
+                            </span>
+                            <span>•</span>
+                            <span className="truncate">By {file.uploadedBy}</span>
+                            <span>•</span>
+                            <span className="text-[10px] text-teal-400 font-semibold uppercase bg-teal-500/10 px-1 py-0.2 rounded">
+                              {file.sourceTitle}
+                            </span>
+                          </div>
+                        </div>
+                        <a 
+                          href={file.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 hover:underline shrink-0 font-medium px-2.5 py-1.5 bg-teal-500/5 rounded border border-teal-500/10 hover:bg-teal-500/10 transition"
+                        >
+                          View <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer info warning */}
+              <div className="p-4 bg-amber-500/5 border-t border-slate-800 text-xs text-amber-400/90 leading-relaxed flex gap-2">
+                <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-amber-500" />
+                <div>
+                  <span className="font-semibold text-white">How to clean storage:</span> If you are approaching the 5 GB Spark plan limit, you can delete files directly by deleting the task they are attached to, or delete old attachment files to keep your space free and avoid potential billing!
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

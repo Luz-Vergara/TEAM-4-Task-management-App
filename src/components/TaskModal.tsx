@@ -34,7 +34,8 @@ import {
 import { formatDate, formatRelativeTime, logActivity } from '../utils';
 import { dispatchNotification } from '../utils/notifications';
 import { collection, addDoc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface TaskModalProps {
   userProfile: UserProfile;
@@ -83,6 +84,7 @@ export default function TaskModal({
   const [showDriveForm, setShowDriveForm] = useState(false);
   const [driveForComment, setDriveForComment] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -92,24 +94,33 @@ export default function TaskModal({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isForComment: boolean) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isForComment: boolean) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 1.5 * 1024 * 1024) {
-      alert("File is too large! For files larger than 1.5MB, please upload to Google Drive and attach the Drive Link instead.");
+    // Support files up to 50MB when using Firebase Storage!
+    if (file.size > 50 * 1024 * 1024) {
+      alert("File is too large! Maximum allowed size is 50MB.");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64Data = reader.result as string;
+    setIsUploading(true);
+
+    try {
+      const uniqueId = 'att-' + Math.random().toString(36).substring(2, 11);
+      const storageRef = ref(storage, `workspaces/${task?.workspaceId || 'default-workspace'}/tasks/${task?.id || 'new'}/${uniqueId}_${file.name}`);
+      
+      // Attempt uploading to Firebase Storage
+      await uploadBytes(storageRef, file);
+      const downloadUrl = await getDownloadURL(storageRef);
+
       const newAttachment: Attachment = {
-        id: 'att-' + Math.random().toString(36).substr(2, 9),
+        id: uniqueId,
         name: file.name,
-        url: base64Data,
+        url: downloadUrl,
         type: 'file',
         size: formatBytes(file.size),
+        rawSize: file.size,
         uploadedAt: new Date().toISOString(),
         uploadedBy: userProfile.name
       };
@@ -123,8 +134,44 @@ export default function TaskModal({
           onSaveTask({ attachments: updated });
         }
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.warn("Storage upload failed, falling back to local base64:", error);
+      
+      // Fallback to local Base64 string for files <= 1.5MB if Firebase Storage is not enabled yet
+      if (file.size > 1.5 * 1024 * 1024) {
+        alert("Upload failed. For files larger than 1.5MB, please ensure Firebase Storage is activated in your Firebase Console Spark plan, or upload to Google Drive and attach the Link instead.");
+        setIsUploading(false);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        const newAttachment: Attachment = {
+          id: 'att-' + Math.random().toString(36).substring(2, 11),
+          name: file.name,
+          url: base64Data,
+          type: 'file',
+          size: formatBytes(file.size),
+          rawSize: file.size,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: userProfile.name
+        };
+
+        if (isForComment) {
+          setCommentAttachments(prev => [...prev, newAttachment]);
+        } else {
+          const updated = [...taskAttachments, newAttachment];
+          setTaskAttachments(updated);
+          if (task && !isEditing) {
+            onSaveTask({ attachments: updated });
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleAddDriveLink = (e: React.FormEvent) => {
@@ -580,11 +627,15 @@ export default function TaskModal({
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Attachments ({taskAttachments.length})</label>
                 <div className="flex items-center gap-1">
-                  <label className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-teal-500 transition cursor-pointer" title="Upload Local File">
+                  {isUploading && (
+                    <span className="text-[10px] text-teal-600 font-semibold animate-pulse mr-1">Uploading...</span>
+                  )}
+                  <label className={`p-1 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-teal-500 transition cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`} title="Upload Local File">
                     <UploadCloud className="w-4 h-4" />
                     <input 
                       type="file" 
                       className="hidden" 
+                      disabled={isUploading}
                       onChange={(e) => handleFileUpload(e, false)} 
                     />
                   </label>
@@ -727,11 +778,15 @@ export default function TaskModal({
                   
                   {/* Plus button to toggle attachment form */}
                   <div className="flex items-center gap-1">
-                    <label className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-teal-500 transition cursor-pointer" title="Upload Local File">
+                    {isUploading && (
+                      <span className="text-[10px] text-teal-600 font-semibold animate-pulse mr-1">Uploading...</span>
+                    )}
+                    <label className={`p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-teal-500 transition cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`} title="Upload Local File">
                       <UploadCloud className="w-3.5 h-3.5" />
                       <input 
                         type="file" 
                         className="hidden" 
+                        disabled={isUploading}
                         onChange={(e) => handleFileUpload(e, false)} 
                       />
                     </label>
@@ -1226,11 +1281,15 @@ export default function TaskModal({
               <form onSubmit={handlePostComment} className="p-3 bg-white border-t border-slate-100 flex items-center gap-2 shrink-0">
                 {/* Paperclip button to open upload menu */}
                 <div className="flex items-center gap-1">
-                  <label className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-450 hover:text-teal-500 transition cursor-pointer" title="Attach Local File">
+                  {isUploading && (
+                    <span className="text-[9px] text-teal-600 font-semibold animate-pulse">Uploading...</span>
+                  )}
+                  <label className={`p-1.5 hover:bg-slate-100 rounded-lg text-slate-450 hover:text-teal-500 transition cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`} title="Attach Local File">
                     <Paperclip className="w-4 h-4" />
                     <input 
                       type="file" 
                       className="hidden" 
+                      disabled={isUploading}
                       onChange={(e) => handleFileUpload(e, true)} 
                     />
                   </label>

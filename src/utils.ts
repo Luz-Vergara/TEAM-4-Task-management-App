@@ -113,3 +113,28 @@ export const DEMO_USERS = [
     avatarColor: 'bg-amber-500',
   }
 ];
+
+// Parse human-readable size or bytes to exact bytes
+export function parseSizeToBytes(sizeStr?: string, rawSize?: number): number {
+  if (rawSize !== undefined && rawSize !== null) return rawSize;
+  if (!sizeStr) return 0;
+  
+  const match = sizeStr.trim().match(/^([\d.]+)\s*([a-zA-Z]+)$/);
+  if (!match) return 0;
+  
+  const value = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  
+  const multiplier: { [key: string]: number } = {
+    'BYTES': 1,
+    'B': 1,
+    'KB': 1024,
+    'K': 1024,
+    'MB': 1024 * 1024,
+    'M': 1024 * 1024,
+    'GB': 1024 * 1024 * 1024,
+    'G': 1024 * 1024 * 1024,
+  };
+  
+  return value * (multiplier[unit] || 1);
+}

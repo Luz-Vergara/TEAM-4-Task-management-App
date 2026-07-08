@@ -67,6 +67,7 @@ export interface Attachment {
   url: string;
   type: 'file' | 'drive' | 'link';
   size?: string;
+  rawSize?: number;
   uploadedAt: string;
   uploadedBy: string;
 }
