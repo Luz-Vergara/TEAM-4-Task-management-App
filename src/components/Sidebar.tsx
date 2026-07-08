@@ -197,7 +197,7 @@ export default function Sidebar({
                       onSelectChannel(ch.id);
                       setIsOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between space-x-2 px-3 py-1.5 rounded text-lg transition text-left ${
+                    className={`group w-full flex items-center justify-between space-x-2 px-3 py-1.5 rounded text-lg transition text-left ${
                       isSelected
                         ? 'bg-teal-500/10 text-teal-400 font-medium'
                         : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
@@ -210,12 +210,12 @@ export default function Sidebar({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        // This would need to set the parent ID
                         onAddSubChannel(ch.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white"
+                      title="Add a Sub-channel"
+                      className="opacity-60 hover:opacity-100 p-1 hover:bg-slate-700 rounded text-slate-300 hover:text-teal-400 transition cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </button>
                   {subChannels.length > 0 && (
