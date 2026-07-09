@@ -81,7 +81,7 @@ export function useWorkspaceSubscriptions({ userProfile }: UseWorkspaceSubscript
     const unsubChannels = onSnapshot(channelsRef, (snapshot) => {
       const chList: Channel[] = [];
       snapshot.forEach((doc) => {
-        chList.push(doc.data() as Channel);
+        chList.push({ id: doc.id, ...doc.data() } as Channel);
       });
       setChannels(chList);
     });

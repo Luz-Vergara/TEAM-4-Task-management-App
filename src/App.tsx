@@ -123,11 +123,14 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Auto-select 'general' or first channel on load if no channel selected
+  // Auto-select 'general' or first channel on load, or fallback if selected channel is deleted
   useEffect(() => {
-    if (channels.length > 0 && !selectedChannelId) {
-      const general = channels.find((c) => c.name === 'general');
-      setSelectedChannelId(general ? general.id : channels[0].id);
+    if (channels.length > 0) {
+      const channelExists = channels.some((c) => c.id === selectedChannelId);
+      if (!selectedChannelId || !channelExists) {
+        const general = channels.find((c) => c.name === 'general');
+        setSelectedChannelId(general ? general.id : channels[0].id);
+      }
     }
   }, [channels, selectedChannelId]);
 

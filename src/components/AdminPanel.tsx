@@ -43,6 +43,8 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [targetRole, setTargetRole] = useState<UserRole>(UserRole.MEMBER);
+  const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
+  const [deletingChannelInProgress, setDeletingChannelInProgress] = useState(false);
   
   // Create Channel states
   const [newChannelName, setNewChannelName] = useState('');
@@ -191,6 +193,37 @@ export default function AdminPanel({
       onRefreshWorkspaceData();
     } catch (err) {
       console.error('Error archiving channel:', err);
+    }
+  };
+
+  // Manage channel delete
+  const handleDeleteChannel = (ch: Channel) => {
+    if (ch.name === 'general') return;
+    setChannelToDelete(ch);
+  };
+
+  const handleConfirmDeleteChannel = async () => {
+    if (!channelToDelete) return;
+    setDeletingChannelInProgress(true);
+    try {
+      const chRef = doc(db, 'workspaces', userProfile.workspaceId, 'channels', channelToDelete.id);
+      await deleteDoc(chRef);
+
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'channel_deleted',
+        `Admin permanently deleted channel #${channelToDelete.name}`
+      );
+
+      setChannelToDelete(null);
+      onRefreshWorkspaceData();
+    } catch (err: any) {
+      console.error('Error deleting channel:', err);
+      alert('Error deleting channel: ' + err.message);
+    } finally {
+      setDeletingChannelInProgress(false);
     }
   };
 
@@ -359,6 +392,17 @@ export default function AdminPanel({
                         <Archive className="w-3.5 h-3.5" />
                       </button>
                     )}
+
+                    {/* Delete button */}
+                    {ch.name !== 'general' && (
+                      <button
+                        onClick={() => handleDeleteChannel(ch)}
+                        title="Delete Channel Permanently"
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition hover:bg-rose-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -502,6 +546,45 @@ export default function AdminPanel({
           </div>
         </div>
       </div>
+
+      {/* Delete Channel Confirmation Modal */}
+      {channelToDelete && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setChannelToDelete(null)} />
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md p-6 relative z-10 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-slate-900">
+            <div className="flex items-center space-x-2 text-rose-600 border-b border-slate-100 pb-3">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="font-extrabold text-xs uppercase tracking-wide">
+                Confirm Permanent Deletion
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you absolutely sure you want to <span className="font-bold text-rose-600">permanently delete</span> the channel <span className="font-bold text-slate-800">#{channelToDelete.name}</span>?
+            </p>
+            <p className="text-xs text-slate-500 bg-rose-50 border border-rose-100 p-3 rounded-lg leading-relaxed">
+              ⚠️ <span className="font-semibold text-rose-700">This action is irreversible.</span> All messages, attachments, and data directly bound to this channel reference will be permanently deleted.
+            </p>
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setChannelToDelete(null)}
+                disabled={deletingChannelInProgress}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs py-2.5 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDeleteChannel}
+                disabled={deletingChannelInProgress}
+                className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+              >
+                {deletingChannelInProgress ? 'Deleting...' : 'Delete Channel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
