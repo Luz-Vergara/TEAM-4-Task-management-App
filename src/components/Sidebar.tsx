@@ -25,7 +25,8 @@ import {
   HardDrive,
   Info,
   ExternalLink,
-  AlertTriangle
+  AlertTriangle,
+  Mail
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -37,13 +38,13 @@ interface SidebarProps {
   workspaceJoinCode?: string;
   channels: Channel[];
   selectedChannelId: string | null;
-  activeView: 'dashboard' | 'channel' | 'admin';
+  activeView: 'dashboard' | 'channel' | 'admin' | 'dispatches';
   members: UserProfile[];
   unreadNotifsCount?: number;
   storageBytes?: number;
   allAttachments?: any[];
   onSelectChannel: (channelId: string) => void;
-  onSelectView: (view: 'dashboard' | 'channel' | 'admin') => void;
+  onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches') => void;
   onAddChannel: () => void;
   onAddSubChannel: (parentId: string) => void;
   onLogout: () => void;
@@ -160,6 +161,25 @@ export default function Sidebar({
           <div className="flex items-center space-x-2.5">
             <LayoutDashboard className="w-4 h-4" />
             <span>Workspace Dashboard</span>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+        </button>
+
+        {/* Email Sandbox Link */}
+        <button
+          onClick={() => {
+            onSelectView('dispatches');
+            setIsOpen(false);
+          }}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-base font-medium transition duration-150 ${
+            activeView === 'dispatches'
+              ? 'bg-slate-800 text-white border-l-2 border-teal-500'
+              : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5">
+            <Mail className="w-4 h-4 text-teal-500" />
+            <span>Email Sandbox</span>
           </div>
           <ChevronRight className="w-3.5 h-3.5 opacity-60" />
         </button>

@@ -6,22 +6,26 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { UserProfile, Notification as WorkspaceNotification, UserNotificationSettings } from '../types';
+import { UserProfile, Notification as WorkspaceNotification, UserNotificationSettings, Task } from '../types';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../utils/notifications';
-import { Bell, Mail, Monitor, X, Eye, AlertCircle, Settings, Check, Trash2, ArrowLeft } from 'lucide-react';
+import { Bell, Mail, Monitor, X, Eye, AlertCircle, Settings, Check, Trash2, ArrowLeft, ExternalLink, FileText, MessageSquare, Calendar, User, Clock, ArrowRight, ArrowUpCircle } from 'lucide-react';
 
 interface NotificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: UserProfile;
   onUpdateProfile: (updatedProfile: UserProfile) => void;
+  tasks?: Task[];
+  onOpenTask?: (task: Task) => void;
 }
 
 export default function NotificationModal({
   isOpen,
   onClose,
   userProfile,
-  onUpdateProfile
+  onUpdateProfile,
+  tasks = [],
+  onOpenTask
 }: NotificationModalProps) {
   const [activeTab, setActiveTab] = useState<'inbox' | 'settings'>('inbox');
   const [notifications, setNotifications] = useState<WorkspaceNotification[]>([]);
@@ -320,43 +324,186 @@ export default function NotificationModal({
             
             {/* EMAIL PREVIEW SANDBOX (When a notification log is clicked) */}
             {selectedNotification ? (
-              <div className="h-full flex flex-col bg-slate-100">
-                {/* Simulated Email Envelope Header */}
-                <div className="bg-white border-b border-slate-200 p-4 shrink-0 flex flex-col space-y-2 text-xs text-slate-600 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-sm">{selectedNotification.emailSubject}</span>
-                    <span className="text-[10px] text-slate-400">{new Date(selectedNotification.createdAt).toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-400 font-medium">From:</span>
-                    <span className="font-bold text-slate-700">{"VibeCheck Automations <noreply@vibecheck-workspace.com>"}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-400 font-medium">To:</span>
-                    <span className="font-bold text-slate-700">{selectedNotification.recipientName} {"<"}{selectedNotification.recipientEmail}{">"}</span>
-                  </div>
-                  <div className="flex items-center space-x-4 pt-1 border-t border-slate-100">
-                    <div className="flex items-center text-teal-600 text-[10px] font-bold">
-                      <Mail className="w-3.5 h-3.5 mr-1" /> Simulated Email Delivered
-                    </div>
-                    {selectedNotification.pwaDelivered && (
-                      <div className="flex items-center text-indigo-600 text-[10px] font-bold">
-                        <Monitor className="w-3.5 h-3.5 mr-1" /> PWA Desktop Dispatched
-                      </div>
-                    )}
-                  </div>
-                </div>
+              (() => {
+                const liveTask = selectedNotification.taskId
+                  ? tasks.find((t) => t.id === selectedNotification.taskId)
+                  : tasks.find((t) => t.title && selectedNotification.emailSubject?.includes(t.title));
 
-                {/* Simulated Gmail Sandbox Body */}
-                <div className="flex-1 p-6 overflow-y-auto flex justify-center">
-                  <div className="w-full max-w-xl bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-fit">
-                    <div 
-                      className="p-1 select-text" 
-                      dangerouslySetInnerHTML={{ __html: selectedNotification.emailBody }} 
-                    />
+                const taskTitle = liveTask?.title || selectedNotification.taskTitle || "Archived Task";
+                const taskDesc = liveTask?.description || selectedNotification.taskDescription || "";
+                const taskStatus = liveTask?.status || selectedNotification.taskStatus || "";
+                const taskPriority = liveTask?.priority || selectedNotification.taskPriority || "";
+                const taskDueDate = liveTask?.dueDate || selectedNotification.taskDueDate || "";
+
+                // Determine action metadata
+                let actionLabel = "Workspace Action";
+                let actionBg = "bg-slate-50 border-slate-100 text-slate-700";
+                let ActionIconComp = Bell;
+
+                switch (selectedNotification.action) {
+                  case 'task_created':
+                    actionLabel = "Task Created";
+                    actionBg = "bg-emerald-50 border-emerald-100 text-emerald-700";
+                    ActionIconComp = ArrowUpCircle;
+                    break;
+                  case 'task_status_changed':
+                    actionLabel = "Status Updated";
+                    actionBg = "bg-blue-50 border-blue-100 text-blue-700";
+                    ActionIconComp = Clock;
+                    break;
+                  case 'comment_added':
+                    actionLabel = "Comment Added";
+                    actionBg = "bg-purple-50 border-purple-100 text-purple-700";
+                    ActionIconComp = MessageSquare;
+                    break;
+                  case 'task_deleted':
+                    actionLabel = "Task Deleted";
+                    actionBg = "bg-rose-50 border-rose-100 text-rose-700";
+                    ActionIconComp = Trash2;
+                    break;
+                  case 'user_joined':
+                    actionLabel = "Member Joined";
+                    actionBg = "bg-teal-50 border-teal-100 text-teal-700";
+                    ActionIconComp = User;
+                    break;
+                }
+
+                return (
+                  <div className="h-full flex flex-col bg-slate-50 overflow-y-auto">
+                    {/* Simulated Email Envelope Header or Action Header */}
+                    <div className="bg-white border-b border-slate-200 p-5 shrink-0 flex flex-col space-y-3 shadow-sm font-sans">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${actionBg}`}>
+                            <ActionIconComp className="w-3.5 h-3.5" />
+                            {actionLabel}
+                          </span>
+                          {liveTask ? (
+                            <span className="bg-teal-500/10 text-teal-700 border border-teal-500/15 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider">
+                              Live In Workspace
+                            </span>
+                          ) : (
+                            <span className="bg-slate-150 text-slate-500 border border-slate-200/80 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider">
+                              Archived/Deleted
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs font-semibold text-slate-400">
+                          {new Date(selectedNotification.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <h4 className="font-extrabold text-slate-800 text-base leading-snug">
+                          {selectedNotification.details}
+                        </h4>
+                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                          <span className="font-semibold text-slate-600">Triggered by:</span>
+                          <span className="font-bold text-slate-700">{selectedNotification.senderName}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-semibold text-slate-600">Delivered to:</span>
+                          <span className="font-bold text-slate-700 text-slate-600">{selectedNotification.recipientName} ({selectedNotification.recipientEmail})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Workspace Task details view */}
+                    <div className="p-6 space-y-6 flex-1 max-w-2xl mx-auto w-full font-sans">
+                      
+                      {/* Interactive Task Details Card */}
+                      <div className="space-y-4">
+                        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                              <FileText className="w-3.5 h-3.5 text-slate-400" /> Related Task Info
+                            </h5>
+                            {liveTask && (
+                              <span className="bg-teal-500/10 text-teal-600 font-bold text-[9px] px-1.5 py-0.5 rounded uppercase">
+                                Interactive State
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Trigger Event Specific info if comment was added */}
+                          {selectedNotification.action === 'comment_added' && (
+                            <div className="p-3.5 bg-purple-50 border border-purple-100/50 rounded-xl text-xs text-slate-600 space-y-1.5">
+                              <span className="font-bold text-purple-800 flex items-center gap-1.5">
+                                <MessageSquare className="w-3.5 h-3.5 text-purple-600" /> Conversation Comment Added
+                              </span>
+                              <p className="italic text-[11px] leading-relaxed text-slate-700">
+                                "{selectedNotification.details.split(' commented: ')[1] || selectedNotification.details}"
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Task Details Card body */}
+                          <div className="space-y-4">
+                            <div>
+                              <h3 className="text-base font-extrabold text-slate-800 tracking-tight leading-snug">
+                                {taskTitle || "Unavailable"}
+                              </h3>
+                              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                                {taskDesc || "No task description details captured in this log snapshot."}
+                              </p>
+                            </div>
+
+                            {/* Task properties table */}
+                            <div className="grid grid-cols-2 gap-3.5 pt-4 border-t border-slate-100 text-xs">
+                              <div className="p-2.5 bg-slate-50 rounded-lg">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Workflow Status</span>
+                                <span className="font-bold text-slate-700 uppercase mt-0.5 block">
+                                  {taskStatus || "N/A"}
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 bg-slate-50 rounded-lg">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Priority Tier</span>
+                                <span className={`font-bold uppercase mt-0.5 block ${
+                                  taskPriority === 'high' ? 'text-rose-500' : taskPriority === 'medium' ? 'text-amber-500' : taskPriority === 'low' ? 'text-emerald-500' : 'text-slate-500'
+                                }`}>
+                                  {taskPriority || "N/A"}
+                                </span>
+                              </div>
+
+                              {taskDueDate && (
+                                <div className="p-2.5 bg-slate-50 rounded-lg col-span-2 flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                                  <div>
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Due Date</span>
+                                    <span className="font-bold text-slate-700">{taskDueDate}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Trigger button to open Task Modal */}
+                            {liveTask && onOpenTask ? (
+                              <div className="pt-3">
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenTask(liveTask)}
+                                  className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-sm hover:shadow transition flex items-center justify-center gap-2 cursor-pointer group"
+                                >
+                                  <span>Open Interactive Task & Comments</span>
+                                  <ExternalLink className="w-4 h-4 transition group-hover:translate-x-0.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-[11px] leading-relaxed flex items-start gap-1.5 mt-2">
+                                <AlertCircle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                                <span>
+                                  <strong>Task Not Editable:</strong> This task has been deleted, archived, or is no longer in the active workspace. This view displays the historical snapshot from the time of the action.
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()
             ) : activeTab === 'inbox' ? (
               /* NOTIFICATION FEED LIST */
               <div className="p-6 h-full flex flex-col">

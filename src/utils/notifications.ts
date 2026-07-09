@@ -33,37 +33,37 @@ function generateEmailBody(
 
   switch (action) {
     case 'task_created':
-      subject = `[VibeCheck] New Task Created: "${task?.title || 'Untitled Task'}"`;
+      subject = `[TEAM 4 Hub] New Task Created: "${task?.title || 'Untitled Task'}"`;
       titleText = 'New Task Assigned';
       actionDescription = `${senderName} created a new task and added it to the workspace.`;
       accentColor = '#0d9488'; // Teal
       break;
     case 'task_status_changed':
-      subject = `[VibeCheck] Status Updated: "${task?.title || 'Untitled Task'}" is now ${task?.status.toUpperCase()}`;
+      subject = `[TEAM 4 Hub] Status Updated: "${task?.title || 'Untitled Task'}" is now ${task?.status.toUpperCase()}`;
       titleText = 'Task Status Updated';
       actionDescription = `${senderName} updated the workflow status of this task.`;
       accentColor = '#3b82f6'; // Blue
       break;
     case 'comment_added':
-      subject = `[VibeCheck] New Comment on "${task?.title || 'Task'}"`;
+      subject = `[TEAM 4 Hub] New Comment on "${task?.title || 'Task'}"`;
       titleText = 'New Conversation Activity';
       actionDescription = `${senderName} added a discussion comment to this task.`;
       accentColor = '#8b5cf6'; // Purple
       break;
     case 'task_deleted':
-      subject = `[VibeCheck] Task Archived/Deleted: "${details}"`;
+      subject = `[TEAM 4 Hub] Task Archived/Deleted: "${details}"`;
       titleText = 'Task Removed';
       actionDescription = `${senderName} permanently deleted/archived a task from the active queue.`;
       accentColor = '#f43f5e'; // Rose
       break;
     case 'user_joined':
-      subject = `[VibeCheck] New Team Member Joined: ${senderName}`;
+      subject = `[TEAM 4 Hub] New Team Member Joined: ${senderName}`;
       titleText = 'Welcome New Member';
       actionDescription = `${senderName} has entered the workspace space.`;
       accentColor = '#0f766e'; // Deep Teal
       break;
     default:
-      subject = `[VibeCheck] Activity Notification`;
+      subject = `[TEAM 4 Hub] Activity Notification`;
       titleText = 'Workspace Activity Alert';
       actionDescription = `${senderName} performed an action in your workspace.`;
       accentColor = '#64748b'; // Slate
@@ -107,7 +107,7 @@ function generateEmailBody(
         <!-- Header -->
         <tr>
           <td style="background-color: ${accentColor}; padding: 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">VibeCheck Workflow Hub</h1>
+            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">TEAM 4 Hub</h1>
           </td>
         </tr>
         
@@ -138,8 +138,8 @@ function generateEmailBody(
         <!-- Footer -->
         <tr>
           <td style="background-color: #f8fafc; padding: 16px 24px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 11px;">
-            <p style="margin: 0 0 4px 0;">This is an automated notification dispatch from your VibeCheck Workspace.</p>
-            <p style="margin: 0;">&copy; 2026 VibeCheck Inc. &bull; <a href="https://ai.studio/build" style="color: ${accentColor}; text-decoration: none;">Manage Preferences</a></p>
+            <p style="margin: 0 0 4px 0;">This is an automated notification dispatch from your TEAM 4 Hub Workspace.</p>
+            <p style="margin: 0;">&copy; 2026 TEAM 4 Hub &bull; <a href="https://ai.studio/build" style="color: ${accentColor}; text-decoration: none;">Manage Preferences</a></p>
           </td>
         </tr>
       </table>
@@ -225,6 +225,12 @@ export async function dispatchNotification(
         emailBody: emailContent.html,
         createdAt: new Date().toISOString(),
         isRead: false,
+        taskId: task?.id || null,
+        taskTitle: task?.title || null,
+        taskDescription: task?.description || null,
+        taskStatus: task?.status || null,
+        taskPriority: task?.priority || null,
+        taskDueDate: task?.dueDate || null,
       };
 
       // Add notification document to Firestore

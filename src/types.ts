@@ -135,7 +135,7 @@ export interface Notification {
   recipientName: string;
   senderUid: string;
   senderName: string;
-  action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted' | 'system';
+  action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted' | 'system' | 'user_joined';
   details: string;
   pwaDelivered: boolean;
   emailDelivered: boolean;
@@ -143,4 +143,10 @@ export interface Notification {
   emailBody: string; // Beautiful HTML preview body
   createdAt: string;
   isRead: boolean;
+  taskId?: string | null;
+  taskTitle?: string | null;
+  taskDescription?: string | null;
+  taskStatus?: string | null;
+  taskPriority?: string | null;
+  taskDueDate?: string | null;
 }

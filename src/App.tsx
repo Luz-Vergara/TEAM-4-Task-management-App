@@ -40,34 +40,33 @@ import ChannelView from './components/ChannelView';
 import TaskModal from './components/TaskModal';
 import AdminPanel from './components/AdminPanel';
 import NotificationModal from './components/NotificationModal';
+import EmailSandbox from './components/EmailSandbox';
 
 import { dispatchNotification } from './utils/notifications';
 
 import { Loader2, Sparkles, Hash, Plus, X, AlertTriangle, Bell, UserPlus, MessageSquare, ArrowUpRight, Trash2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-interface ToastNotification {
-  id: string;
-  senderName: string;
-  details: string;
-  action: string;
-  createdAt: string;
-}
+import { useWorkspaceSubscriptions, ToastNotification } from './hooks/useWorkspaceSubscriptions';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [members, setMembers] = useState<UserProfile[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
-  const [toasts, setToasts] = useState<ToastNotification[]>([]);
+
+  const {
+    workspace,
+    channels,
+    members,
+    tasks,
+    comments,
+    logs,
+    unreadNotifsCount,
+    toasts,
+    setToasts
+  } = useWorkspaceSubscriptions({ userProfile });
 
   // Navigation state
-  const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin' | 'dispatches'>('dashboard');
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   
   // Modals state
@@ -116,11 +115,6 @@ export default function App() {
       } else {
         setCurrentUser(null);
         setUserProfile(null);
-        setWorkspace(null);
-        setChannels([]);
-        setMembers([]);
-        setTasks([]);
-        setLogs([]);
       }
       setLoading(false);
     });
@@ -128,172 +122,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync workspace and other collection data when user profile is verified
+  // Auto-select 'general' or first channel on load if no channel selected
   useEffect(() => {
-    if (!userProfile) return;
-
-    setLoading(true);
-    const wId = userProfile.workspaceId;
-
-    // 1. Fetch Workspace Details
-    const workspaceRef = doc(db, 'workspaces', wId);
-    const unsubWorkspace = onSnapshot(workspaceRef, (snap) => {
-      if (snap.exists()) {
-        setWorkspace(snap.data() as Workspace);
-      } else {
-        setWorkspace({
-          id: wId,
-          name: 'Demo Workspace',
-          createdBy: 'system',
-          createdAt: new Date().toISOString()
-        });
-      }
-    });
-
-    // 2. Real-time Channels listener
-    const channelsRef = collection(db, 'workspaces', wId, 'channels');
-    const unsubChannels = onSnapshot(channelsRef, (snapshot) => {
-      const chList: Channel[] = [];
-      snapshot.forEach((doc) => {
-        chList.push(doc.data() as Channel);
-      });
-      setChannels(chList);
-      
-      // Auto-select 'general' or first channel on load if no channel selected
-      if (chList.length > 0 && !selectedChannelId) {
-        const general = chList.find((c) => c.name === 'general');
-        setSelectedChannelId(general ? general.id : chList[0].id);
-      }
-    });
-
-    // 3. Real-time Members listener
-    const usersQuery = query(collection(db, 'users'), where('workspaceId', '==', wId));
-    const unsubMembers = onSnapshot(usersQuery, (snapshot) => {
-      const mList: UserProfile[] = [];
-      const seenEmails = new Set<string>();
-      const seenUids = new Set<string>();
-      snapshot.forEach((doc) => {
-        const profile = doc.data() as UserProfile;
-        const uid = profile.uid || doc.id;
-        const emailKey = (profile.email || '').toLowerCase().trim();
-        
-        if (seenUids.has(uid)) return;
-        if (emailKey && seenEmails.has(emailKey)) return;
-        
-        seenUids.add(uid);
-        if (emailKey) {
-          seenEmails.add(emailKey);
-        }
-        
-        mList.push({ ...profile, uid });
-      });
-      setMembers(mList);
-    });
-
-    // 4. Real-time Tasks listener
-    const tasksRef = collection(db, 'workspaces', wId, 'tasks');
-    const unsubTasks = onSnapshot(tasksRef, (snapshot) => {
-      const tList: Task[] = [];
-      snapshot.forEach((doc) => {
-        tList.push({ id: doc.id, ...doc.data() } as Task);
-      });
-      setTasks(tList);
-    });
-
-    // 4.5. Real-time Comments listener (for storage tracking)
-    const commentsRef = collection(db, 'workspaces', wId, 'comments');
-    const unsubComments = onSnapshot(commentsRef, (snapshot) => {
-      const cList: Comment[] = [];
-      snapshot.forEach((doc) => {
-        cList.push({ id: doc.id, ...doc.data() } as Comment);
-      });
-      setComments(cList);
-    });
-
-    // 5. Real-time Logs listener
-    const logsRef = collection(db, 'workspaces', wId, 'logs');
-    const logsQuery = query(logsRef, orderBy('createdAt', 'desc'));
-    const unsubLogs = onSnapshot(logsQuery, (snapshot) => {
-      const lList: ActivityLog[] = [];
-      snapshot.forEach((doc) => {
-        lList.push({ id: doc.id, ...doc.data() } as ActivityLog);
-      });
-      setLogs(lList);
-    });
-
-    // 6. Real-time Notifications listener for desktop PWA push
-    const notificationsRef = collection(db, 'workspaces', wId, 'notifications');
-    const notifsQuery = query(
-      notificationsRef,
-      where('recipientUid', '==', userProfile.uid),
-      orderBy('createdAt', 'desc')
-    );
-    const appLoadTime = new Date().toISOString();
-    const seenNotifIds = new Set<string>();
-    const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
-      // Calculate unread notifications count
-      let unreadCount = 0;
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (!data.isRead) {
-          unreadCount++;
-        }
-      });
-      setUnreadNotifsCount(unreadCount);
-
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data() as any;
-          if (data.createdAt > appLoadTime && !seenNotifIds.has(change.doc.id)) {
-            seenNotifIds.add(change.doc.id);
-            const settings = userProfile.notificationSettings || { pwaEnabled: true };
-
-            // 1. Trigger beautiful in-app toast popup instantly
-            const toastId = change.doc.id;
-            setToasts((prev) => {
-              if (prev.some((t) => t.id === toastId)) return prev;
-              return [{
-                id: toastId,
-                senderName: data.senderName,
-                details: data.details,
-                action: data.action,
-                createdAt: data.createdAt
-              }, ...prev].slice(0, 5);
-            });
-
-            // Auto-dismiss this toast after 6 seconds
-            setTimeout(() => {
-              setToasts((prev) => prev.filter((t) => t.id !== toastId));
-            }, 6000);
-
-            // 2. Trigger native browser push notification
-            if (settings.pwaEnabled && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                new Notification(`VibeCheck: ${data.senderName}`, {
-                  body: data.details,
-                  icon: '/favicon.ico'
-                });
-              } catch (err) {
-                console.error('Error firing desktop alert:', err);
-              }
-            }
-          }
-        }
-      });
-    });
-
-    setLoading(false);
-
-    return () => {
-      unsubWorkspace();
-      unsubChannels();
-      unsubMembers();
-      unsubTasks();
-      unsubComments();
-      unsubLogs();
-      unsubNotifs();
-    };
-  }, [userProfile]);
+    if (channels.length > 0 && !selectedChannelId) {
+      const general = channels.find((c) => c.name === 'general');
+      setSelectedChannelId(general ? general.id : channels[0].id);
+    }
+  }, [channels, selectedChannelId]);
 
   const handleAuthSuccess = (profile: UserProfile) => {
     setUserProfile(profile);
@@ -304,7 +139,7 @@ export default function App() {
     setActiveView('channel');
   };
 
-  const handleSelectView = (view: 'dashboard' | 'channel' | 'admin') => {
+  const handleSelectView = (view: 'dashboard' | 'channel' | 'admin' | 'dispatches') => {
     setActiveView(view);
   };
 
@@ -679,6 +514,16 @@ export default function App() {
           />
         )}
 
+        {activeView === 'dispatches' && (
+          <EmailSandbox
+            userProfile={userProfile}
+            tasks={tasks}
+            onOpenTask={(task) => {
+              handleSelectTaskDetails(task);
+            }}
+          />
+        )}
+
         {activeView === 'channel' && activeChannelObj && (
           <ChannelView
             userProfile={userProfile}
@@ -795,6 +640,11 @@ export default function App() {
           onClose={() => setIsNotificationModalOpen(false)}
           userProfile={userProfile}
           onUpdateProfile={(updated) => setUserProfile(updated)}
+          tasks={tasks}
+          onOpenTask={(task) => {
+            setIsNotificationModalOpen(false);
+            handleSelectTaskDetails(task);
+          }}
         />
       )}
 
