@@ -52,6 +52,28 @@ import { useWorkspaceSubscriptions, ToastNotification } from './hooks/useWorkspa
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User choice outcome: ${outcome}`);
+    setDeferredPrompt(null);
+  };
 
   const {
     workspace,
@@ -482,6 +504,8 @@ export default function App() {
         unreadNotifsCount={unreadNotifsCount}
         storageBytes={totalStorageBytes}
         allAttachments={allUploadedAttachments}
+        deferredPrompt={deferredPrompt}
+        onInstallApp={handleInstallApp}
         onSelectChannel={handleSelectChannel}
         onSelectView={handleSelectView}
         onAddChannel={() => { setParentChannelId(null); setIsCreateChannelOpen(true); }}

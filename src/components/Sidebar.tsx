@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Channel, UserProfile, UserRole } from '../types';
 import { 
   Hash, 
@@ -26,7 +26,10 @@ import {
   Info,
   ExternalLink,
   AlertTriangle,
-  Mail
+  Mail,
+  Laptop,
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -43,6 +46,8 @@ interface SidebarProps {
   unreadNotifsCount?: number;
   storageBytes?: number;
   allAttachments?: any[];
+  deferredPrompt?: any;
+  onInstallApp?: () => void;
   onSelectChannel: (channelId: string) => void;
   onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches') => void;
   onAddChannel: () => void;
@@ -62,6 +67,8 @@ export default function Sidebar({
   unreadNotifsCount = 0,
   storageBytes = 0,
   allAttachments = [],
+  deferredPrompt,
+  onInstallApp,
   onSelectChannel,
   onSelectView,
   onAddChannel,
@@ -71,6 +78,16 @@ export default function Sidebar({
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showStorageBreakdown, setShowStorageBreakdown] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
+                               (window.navigator as any).standalone === true;
+      setIsStandalone(isStandaloneMode);
+    }
+  }, []);
 
   const formatStorageSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -353,6 +370,61 @@ export default function Sidebar({
                 To avoid payments, stay under 5.0 GB limit. Only real uploaded files consume storage.
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* PWA / Desktop App Standalone Installation Section */}
+        <div className="pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">
+            <span className="flex items-center gap-1.5">
+              <Laptop className="w-3.5 h-3.5 text-teal-400" /> Standalone App
+            </span>
+          </div>
+          
+          <div className="bg-slate-950/30 border border-slate-800/60 p-3 rounded-lg font-sans">
+            {isStandalone ? (
+              <div className="flex items-center gap-2 text-teal-400 text-xs py-1">
+                <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+                <span className="font-semibold">Installed on Laptop ✓</span>
+              </div>
+            ) : deferredPrompt ? (
+              <div>
+                <p className="text-[10px] text-slate-400 leading-normal mb-2.5">
+                  Install VibeCheck on your desktop for a native standalone window experience and keyboard shortcuts.
+                </p>
+                <button
+                  onClick={onInstallApp}
+                  className="w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-teal-900/10 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" /> Install Desktop App
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-[10px] text-slate-400 leading-normal mb-2">
+                  Install VibeCheck to your laptop dock or home screen for standalone usage.
+                </p>
+                <button
+                  onClick={() => setShowInstallGuide(!showInstallGuide)}
+                  className="w-full py-1 px-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Info className="w-3 h-3 text-teal-400" /> {showInstallGuide ? 'Hide Installation Guide' : 'How to Install App'}
+                </button>
+                
+                {showInstallGuide && (
+                  <div className="mt-2 text-[9px] text-slate-400 space-y-1.5 border-t border-slate-800/80 pt-2">
+                    <div className="text-slate-300 font-semibold uppercase tracking-wider text-[8px]">Chrome / Edge:</div>
+                    <p>Click the <strong className="text-slate-200">⊕ (Install)</strong> icon on the right side of your address bar.</p>
+                    
+                    <div className="text-slate-300 font-semibold uppercase tracking-wider text-[8px] pt-1">Safari on Mac:</div>
+                    <p>Click <strong className="text-slate-200">File</strong> in the top menu, then click <strong className="text-slate-200">Add to Dock...</strong></p>
+
+                    <div className="text-slate-300 font-semibold uppercase tracking-wider text-[8px] pt-1">Mobile devices:</div>
+                    <p>Tap <strong className="text-slate-200">Share</strong> (iOS Safari) or <strong className="text-slate-200">Menu (⋮)</strong> (Android Chrome) and select <strong className="text-slate-200">Add to Home Screen</strong>.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
