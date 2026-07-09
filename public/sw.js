@@ -4,21 +4,14 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon-192.jpg',
-  '/icon-512.jpg'
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Robust caching: try to cache each asset individually so one failure doesn't block installation
-      return Promise.allSettled(
-        ASSETS_TO_CACHE.map((asset) => {
-          return cache.add(asset).catch((err) => {
-            console.warn(`Failed to cache asset during install: ${asset}`, err);
-          });
-        })
-      );
+      return cache.addAll(ASSETS_TO_CACHE);
     }).then(() => {
       return self.skipWaiting();
     })
@@ -63,8 +56,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/icon-192.jpg',
-    badge: '/icon-192.jpg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),

@@ -5,13 +5,13 @@
   "description": "Real-time task tracking and high-vibe workflow coordination hub",
   "icons": [
     {
-      "src": "/icon-192.jpg",
-      "type": "image/jpeg",
+      "src": "/icon-192.png",
+      "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/icon-512.jpg",
-      "type": "image/jpeg",
+      "src": "/icon-512.png",
+      "type": "image/png",
       "sizes": "512x512"
     }
   ],
