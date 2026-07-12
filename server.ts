@@ -8,6 +8,10 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import * as admin from "firebase-admin";
+
+// Initialize Admin SDK
+admin.initializeApp();
 
 // Load environment variables
 dotenv.config();
@@ -82,6 +86,40 @@ async function startServer() {
       console.error("❌ Failed to send email via SMTP:", error);
       return res.status(500).json({
         error: "SMTP Dispatch Error",
+        details: error.message
+      });
+    }
+  });
+
+  // API: Send Push Notification
+  app.post("/api/send-notification", async (req, res) => {
+    const { token, title, body } = req.body;
+
+    if (!token || !title || !body) {
+      return res.status(400).json({ error: "Missing required fields (token, title, body)" });
+    }
+
+    try {
+      const message = {
+        token,
+        notification: {
+          title,
+          body,
+        },
+      };
+
+      const response = await admin.messaging().send(message);
+      console.log('Successfully sent message:', response);
+      
+      return res.json({
+        success: true,
+        response,
+        message: "Push notification sent successfully."
+      });
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      return res.status(500).json({
+        error: "FCM Dispatch Error",
         details: error.message
       });
     }

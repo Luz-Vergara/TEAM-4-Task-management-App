@@ -17,12 +17,20 @@ export const DEFAULT_NOTIFICATION_SETTINGS: UserNotificationSettings = {
   onTaskDeleted: true,
 };
 
-export async function requestNotificationPermission() {
+export async function requestNotificationPermission(userId: string) {
   try {
     const permission = await window.Notification.requestPermission();
     if (permission === 'granted') {
       const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY_HERE' }); // Note: Replace with actual key or fetch from server if needed
       console.log('Notification permission granted. Token:', token);
+      
+      // Save token to Firestore
+      if (userId && token) {
+        await addDoc(collection(db, 'users', userId, 'fcmTokens'), {
+          token,
+          createdAt: new Date().toISOString()
+        });
+      }
       return token;
     }
   } catch (err) {

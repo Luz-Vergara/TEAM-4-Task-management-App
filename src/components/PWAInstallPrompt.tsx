@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Download, X, Sparkles, Monitor, Smartphone, Check, HelpCircle, Bell } from 'lucide-react';
 import { requestNotificationPermission } from '../utils/notifications';
+import { auth } from '../firebase';
 
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -113,7 +114,12 @@ export default function PWAInstallPrompt() {
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={async () => {
-                      await requestNotificationPermission();
+                      const userId = auth.currentUser?.uid;
+                      if (userId) {
+                        await requestNotificationPermission(userId);
+                      } else {
+                        console.error('User not logged in');
+                      }
                     }}
                     className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs py-2 px-4 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
