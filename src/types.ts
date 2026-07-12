@@ -22,6 +22,50 @@ export enum TaskStatus {
   COMPLETED = 'completed',
 }
 
+export enum TargetScope {
+  WORKSPACE = 'workspace',
+  CHANNEL = 'channel',
+  MEMBER = 'member',
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  assigneeId?: string;
+  dueDate?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in-progress' | 'completed';
+  weight: number;
+  linkedTaskId?: string;
+  notes?: string;
+}
+
+export interface Target {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  targetType: 'numeric' | 'deliverable' | 'recurring' | 'project';
+  periodType: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom';
+  startDate?: string;
+  endDate?: string;
+  targetQuantity: number;
+  responsibilityType: 'all_members' | 'specific_member';
+  responsibleMemberId?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'active' | 'archived';
+  milestones: Milestone[];
+  createdBy: string;
+  createdAt: any; // Firestore Timestamp
+  updatedAt: any; // Firestore Timestamp
+  reportingPeriod?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom';
+  selectedMonth?: number | null;
+  selectedQuarter?: number | null;
+  selectedSemester?: number | null;
+  selectedYear?: number;
+  accomplishedQuantity?: number | null;
+}
+
 export interface UserNotificationSettings {
   pwaEnabled: boolean;
   emailEnabled: boolean;
@@ -96,6 +140,7 @@ export interface Task {
   dueDate: string; // YYYY-MM-DD
   createdAt: string;
   updatedAt: string;
+  targetId?: string | null;
   attachments?: Attachment[];
   statusHistory?: StatusHistoryEntry[];
 }

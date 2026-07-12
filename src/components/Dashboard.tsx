@@ -28,6 +28,7 @@ interface DashboardProps {
   channels: Channel[];
   logs: ActivityLog[];
   onSelectTask: (task: Task) => void;
+  onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets') => void;
 }
 
 export default function Dashboard({
@@ -36,7 +37,8 @@ export default function Dashboard({
   members,
   channels,
   logs,
-  onSelectTask
+  onSelectTask,
+  onSelectView
 }: DashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -146,6 +148,40 @@ export default function Dashboard({
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Compact Target Summary */}
+        <div className="bg-white p-5 rounded-xl border border-teal-100 flex flex-col justify-between shadow-sm col-span-2 lg:col-span-1">
+           <div className="flex items-center justify-between mb-2">
+             <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider">Targets</span>
+             <TrendingUp className="w-4 h-4 text-teal-500" />
+           </div>
+           <div className="space-y-3">
+             <div className="space-y-1">
+               <div className="flex justify-between text-xs text-slate-500">
+                 <span>Monthly</span>
+                 <span className="font-semibold text-slate-900">64%</span>
+               </div>
+               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                 <div className="bg-teal-500 h-full w-[64%] rounded-full" />
+               </div>
+             </div>
+             <div className="space-y-1">
+               <div className="flex justify-between text-xs text-slate-500">
+                 <span>Yearly</span>
+                 <span className="font-semibold text-slate-900">46%</span>
+               </div>
+               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                 <div className="bg-teal-600 h-full w-[46%] rounded-full" />
+               </div>
+             </div>
+           </div>
+           <button 
+             onClick={() => onSelectView('targets')}
+             className="mt-4 w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg transition"
+           >
+             View
+           </button>
+        </div>
+
         {/* Total Tasks */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-slate-400">

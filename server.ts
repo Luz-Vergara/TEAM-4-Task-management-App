@@ -108,7 +108,7 @@ async function startServer() {
         },
       };
 
-      const response = await admin.messaging().send(message);
+      const response = await (admin as any).messaging().send(message);
       console.log('Successfully sent message:', response);
       
       return res.json({

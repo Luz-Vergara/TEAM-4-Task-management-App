@@ -46,6 +46,9 @@ interface TaskDetailsFormProps {
   members: UserProfile[];
   task: Task | null;
   setIsEditing: (val: boolean) => void;
+  workspaceTargets: any[];
+  targetId: string | null;
+  setTargetId: (val: string | null) => void;
 }
 
 export default function TaskDetailsForm({
@@ -77,7 +80,10 @@ export default function TaskDetailsForm({
   handleSaveSubmit,
   members,
   task,
-  setIsEditing
+  setIsEditing,
+  workspaceTargets,
+  targetId,
+  setTargetId
 }: TaskDetailsFormProps) {
   return (
     <form onSubmit={handleSaveSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -102,6 +108,23 @@ export default function TaskDetailsForm({
           rows={4}
           className="w-full bg-slate-100 border-none rounded-lg py-2 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
         />
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target</label>
+        <select
+          required
+          value={targetId || ''}
+          onChange={(e) => setTargetId(e.target.value === '' ? null : e.target.value)}
+          className="w-full bg-slate-100 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none"
+        >
+          <option value="">Other / General Task</option>
+          {workspaceTargets.map((tgt) => (
+            <option key={tgt.id} value={tgt.id}>
+              {tgt.name} ({tgt.periodType})
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

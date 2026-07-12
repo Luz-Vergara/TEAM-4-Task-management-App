@@ -41,6 +41,7 @@ import TaskModal from './components/TaskModal';
 import AdminPanel from './components/AdminPanel';
 import NotificationModal from './components/NotificationModal';
 import EmailSandbox from './components/EmailSandbox';
+import TargetsPerformance from './components/TargetsPerformance';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 
 import { dispatchNotification } from './utils/notifications';
@@ -67,7 +68,7 @@ export default function App() {
   } = useWorkspaceSubscriptions({ userProfile });
 
   // Navigation state
-  const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin' | 'dispatches'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets'>('dashboard');
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   
   // Modals state
@@ -143,7 +144,7 @@ export default function App() {
     setActiveView('channel');
   };
 
-  const handleSelectView = (view: 'dashboard' | 'channel' | 'admin' | 'dispatches') => {
+  const handleSelectView = (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets') => {
     setActiveView(view);
   };
 
@@ -186,6 +187,7 @@ export default function App() {
           priority: taskData.priority || TaskPriority.MEDIUM,
           status: taskData.status || TaskStatus.TODO,
           dueDate: taskData.dueDate || '',
+          targetId: taskData.targetId !== undefined ? taskData.targetId : null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           attachments: taskData.attachments || []
@@ -504,6 +506,7 @@ export default function App() {
             channels={channels}
             logs={logs}
             onSelectTask={handleSelectTaskDetails}
+            onSelectView={handleSelectView}
           />
         )}
 
@@ -525,6 +528,15 @@ export default function App() {
             onOpenTask={(task) => {
               handleSelectTaskDetails(task);
             }}
+          />
+        )}
+
+        {activeView === 'targets' && (
+          <TargetsPerformance
+            userProfile={userProfile}
+            channels={channels}
+            members={members}
+            tasks={tasks}
           />
         )}
 

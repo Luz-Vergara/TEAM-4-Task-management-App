@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Task, UserProfile, UserRole, TaskStatus, TaskPriority, Comment, Attachment, StatusHistoryEntry } from '../types';
+import { Task, UserProfile, UserRole, TaskStatus, TaskPriority, Comment, Attachment, StatusHistoryEntry, Target } from '../types';
 import { 
   X, 
   Trash2, 
@@ -57,6 +57,8 @@ export default function TaskModal({
   const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [status, setStatus] = useState<TaskStatus>(initialStatus);
   const [dueDate, setDueDate] = useState('');
+  const [workspaceTargets, setWorkspaceTargets] = useState<Target[]>([]);
+  const [targetId, setTargetId] = useState<string | null>(null);
 
   // Workflow Action state
   const [workflowRemarks, setWorkflowRemarks] = useState('');
@@ -287,6 +289,7 @@ export default function TaskModal({
       setStatus(task.status);
       setDueDate(task.dueDate || '');
       setTaskAttachments(task.attachments || []);
+      setTargetId(task.targetId || null);
       setIsEditing(false);
     } else {
       setTitle('');
@@ -296,9 +299,27 @@ export default function TaskModal({
       setStatus(initialStatus);
       setDueDate(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]); // Default 3 days from now
       setTaskAttachments([]);
+      setTargetId(null);
       setIsEditing(true);
     }
   }, [task, initialStatus, members]);
+
+  // Fetch active targets
+  useEffect(() => {
+    if (!userProfile?.workspaceId) return;
+    const targetsRef = collection(db, 'workspaces', userProfile.workspaceId, 'targets');
+    const q = query(targetsRef, where('status', '==', 'active'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const activeTargets: Target[] = [];
+      snapshot.forEach((doc) => {
+        activeTargets.push({ id: doc.id, ...doc.data() } as Target);
+      });
+      setWorkspaceTargets(activeTargets);
+    }, (error) => {
+      console.error("Error fetching targets for TaskModal:", error);
+    });
+    return () => unsubscribe();
+  }, [userProfile?.workspaceId]);
 
   // Fetch comments for active task
   useEffect(() => {
@@ -382,6 +403,7 @@ export default function TaskModal({
       dueDate,
       channelId: task ? task.channelId : channelId,
       attachments: taskAttachments,
+      targetId: targetId,
     });
   };
 
@@ -526,6 +548,9 @@ export default function TaskModal({
             members={members}
             task={task}
             setIsEditing={setIsEditing}
+            workspaceTargets={workspaceTargets}
+            targetId={targetId}
+            setTargetId={setTargetId}
           />
         ) : (
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row h-full">

@@ -28,7 +28,8 @@ import {
   Info,
   ExternalLink,
   AlertTriangle,
-  Mail
+  Mail,
+  TrendingUp
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -40,13 +41,13 @@ interface SidebarProps {
   workspaceJoinCode?: string;
   channels: Channel[];
   selectedChannelId: string | null;
-  activeView: 'dashboard' | 'channel' | 'admin' | 'dispatches';
+  activeView: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets';
   members: UserProfile[];
   unreadNotifsCount?: number;
   storageBytes?: number;
   allAttachments?: any[];
   onSelectChannel: (channelId: string) => void;
-  onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches') => void;
+  onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets') => void;
   onAddChannel: () => void;
   onAddSubChannel: (parentId: string) => void;
   onLogout: () => void;
@@ -157,35 +158,44 @@ export default function Sidebar({
 
   const sidebarContent = (
     <div className="h-full flex flex-col bg-slate-900 text-slate-400 font-sans border-r border-slate-800 select-none">
-      {/* Workspace Header */}
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center space-x-3 overflow-hidden">
-          <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center shrink-0">
-            <Compass className="w-4 h-4 text-white" />
-          </div>
-          <div className="overflow-hidden">
-            <h2 className="font-bold text-white text-base truncate leading-tight">
-              {workspaceName}
-            </h2>
-            <p className="text-[10px] text-teal-400 font-medium truncate flex items-center mt-0.5">
-              <Sparkles className="w-2.5 h-2.5 mr-1 animate-pulse" /> Code: {userProfile.workspaceId}
-            </p>
-            {workspaceJoinCode && (
-              <p className="text-[9px] text-slate-500 font-bold truncate flex items-center mt-0.5">
-                <Key className="w-2.5 h-2.5 mr-1 text-teal-500/80" /> Join Key: <span className="text-teal-400 ml-1 select-all font-mono">{workspaceJoinCode}</span>
-              </p>
-            )}
-          </div>
+      {/* Top Profile Section */}
+      <div className="p-5 bg-slate-950/50 flex items-center gap-3.5 border-b border-slate-800">
+        <div className={`w-11 h-11 rounded-full font-extrabold flex items-center justify-center text-sm uppercase shrink-0 shadow-md ${getMemberAvatarBg(userProfile.role)}`}>
+          {getAvatarInitials(userProfile.name)}
         </div>
-        {showInstallBtn && (
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="text-sm font-bold text-white leading-tight truncate">
+            {userProfile.name}
+          </p>
+          <p className="text-xs text-slate-400 capitalize mt-0.5 font-medium flex items-center">
+            <span className="inline-block w-1.5 h-1.5 bg-teal-500 rounded-full mr-1.5"></span>
+            {userProfile.role}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Bell notifications button */}
           <button
-            onClick={handleInstallClick}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-400 transition cursor-pointer"
-            title="Install App"
+            onClick={onOpenNotifications}
+            title="Notifications & Alerts"
+            className="p-2 text-slate-400 hover:text-teal-400 hover:bg-teal-500/10 rounded-lg transition cursor-pointer relative"
           >
-            <Download className="w-4 h-4" />
+            <Bell className="w-4 h-4" />
+            {unreadNotifsCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 bg-rose-500 text-white text-[9px] font-extrabold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center border border-slate-900 animate-pulse">
+                {unreadNotifsCount}
+              </span>
+            )}
           </button>
-        )}
+
+          <button
+            onClick={handleSignOut}
+            title="Sign Out"
+            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Main Navigation Items */}
@@ -205,6 +215,25 @@ export default function Sidebar({
           <div className="flex items-center space-x-2.5">
             <LayoutDashboard className="w-4 h-4" />
             <span>Workspace Dashboard</span>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+        </button>
+
+        {/* Targets & Performance Link */}
+        <button
+          onClick={() => {
+            onSelectView('targets');
+            setIsOpen(false);
+          }}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-base font-medium transition duration-150 ${
+            activeView === 'targets'
+              ? 'bg-slate-800 text-white border-l-2 border-teal-500'
+              : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5">
+            <TrendingUp className="w-4 h-4 text-teal-500" />
+            <span>Targets & Performance</span>
           </div>
           <ChevronRight className="w-3.5 h-3.5 opacity-60" />
         </button>
@@ -463,41 +492,35 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Footer Profile Details */}
-      <div className="p-4 bg-slate-950/40 mt-auto flex items-center gap-3 border-t border-slate-800">
-        <div className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs uppercase shrink-0 ${getMemberAvatarBg(userProfile.role)}`}>
-          {getAvatarInitials(userProfile.name)}
+      {/* Workspace Footer */}
+      <div className="p-4 bg-slate-950/40 mt-auto flex items-center justify-between border-t border-slate-800">
+        <div className="flex items-center space-x-3 overflow-hidden">
+          <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center shrink-0">
+            <Compass className="w-4 h-4 text-white" />
+          </div>
+          <div className="overflow-hidden">
+            <h2 className="font-bold text-white text-base truncate leading-tight">
+              {workspaceName}
+            </h2>
+            <p className="text-[10px] text-teal-400 font-medium truncate flex items-center mt-0.5">
+              <Sparkles className="w-2.5 h-2.5 mr-1 animate-pulse" /> Code: {userProfile.workspaceId}
+            </p>
+            {workspaceJoinCode && (
+              <p className="text-[9px] text-slate-500 font-bold truncate flex items-center mt-0.5">
+                <Key className="w-2.5 h-2.5 mr-1 text-teal-500/80" /> Join Key: <span className="text-teal-400 ml-1 select-all font-mono">{workspaceJoinCode}</span>
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex-1 overflow-hidden">
-          <p className="text-xs font-bold text-white leading-tight truncate">
-            {userProfile.name}
-          </p>
-          <p className="text-[10px] uppercase text-slate-500 truncate capitalize">
-            {userProfile.role} profile
-          </p>
-        </div>
-        
-        {/* Bell notifications button */}
-        <button
-          onClick={onOpenNotifications}
-          title="Notifications & Alerts"
-          className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-teal-500/10 rounded-lg transition shrink-0 cursor-pointer relative"
-        >
-          <Bell className="w-4 h-4" />
-          {unreadNotifsCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-extrabold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center border border-slate-900 animate-pulse">
-              {unreadNotifsCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={handleSignOut}
-          title="Sign Out"
-          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition shrink-0"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+        {showInstallBtn && (
+          <button
+            onClick={handleInstallClick}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-400 transition cursor-pointer shrink-0"
+            title="Install App"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -521,7 +544,7 @@ export default function Sidebar({
       </div>
 
       {/* Desktop Persistent Sidebar */}
-      <div className="hidden md:block w-64 h-screen shrink-0">
+      <div className="hidden md:block w-[272px] h-screen shrink-0">
         {sidebarContent}
       </div>
 
