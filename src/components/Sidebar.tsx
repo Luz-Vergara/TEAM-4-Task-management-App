@@ -18,8 +18,10 @@ import {
   Compass, 
   Bell, 
   Menu, 
+  Download,
   X,
   ChevronRight,
+  ChevronDown,
   Sparkles,
   Key,
   HardDrive,
@@ -71,6 +73,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showStorageBreakdown, setShowStorageBreakdown] = useState(false);
+  const [collapsedChannels, setCollapsedChannels] = useState<Record<string, boolean>>({});
 
   // PWA Install states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -174,6 +177,15 @@ export default function Sidebar({
             )}
           </div>
         </div>
+        {showInstallBtn && (
+          <button
+            onClick={handleInstallClick}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-400 transition cursor-pointer"
+            title="Install App"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Main Navigation Items */}
@@ -260,35 +272,67 @@ export default function Sidebar({
             {channels.filter(ch => !ch.isArchived && !ch.parentId).map((ch) => {
               const subChannels = channels.filter(sub => !sub.isArchived && sub.parentId === ch.id);
               const isSelected = activeView === 'channel' && selectedChannelId === ch.id;
+              const hasSubs = subChannels.length > 0;
+              const isCollapsed = collapsedChannels[ch.id] || false;
               return (
                 <div key={ch.id}>
-                  <button
-                    onClick={() => {
-                      onSelectChannel(ch.id);
-                      setIsOpen(false);
-                    }}
-                    className={`group w-full flex items-center justify-between space-x-2 px-3 py-1.5 rounded text-lg transition text-left ${
+                  <div
+                    className={`group w-full flex items-center justify-between space-x-2 px-3 py-1.5 rounded transition text-left ${
                       isSelected
                         ? 'bg-teal-500/10 text-teal-400 font-medium'
                         : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <div className="flex items-center space-x-2 truncate">
-                      <span className={`font-mono text-lg leading-none ${isSelected ? 'text-teal-400 opacity-80' : 'text-slate-500 opacity-55'}`}>#</span>
-                      <span className="truncate">{ch.name}</span>
+                    <div className="flex items-center space-x-2 truncate flex-1 min-w-0">
+                      {/* Chevron Toggle Button */}
+                      {hasSubs ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCollapsedChannels(prev => ({
+                              ...prev,
+                              [ch.id]: !prev[ch.id]
+                            }));
+                          }}
+                          className="p-1 rounded hover:bg-slate-700/60 text-slate-400 hover:text-white transition shrink-0 cursor-pointer"
+                          title={isCollapsed ? "Expand Sub-channels" : "Collapse Sub-channels"}
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className={`font-mono text-lg leading-none w-4 text-center shrink-0 ${isSelected ? 'text-teal-400 opacity-80' : 'text-slate-500 opacity-55'}`}>#</span>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          onSelectChannel(ch.id);
+                          setIsOpen(false);
+                        }}
+                        className="text-left truncate flex-1 min-w-0"
+                      >
+                        {hasSubs && (
+                          <span className={`font-mono text-sm leading-none mr-1 ${isSelected ? 'text-teal-400 opacity-80' : 'text-slate-500 opacity-55'}`}>#</span>
+                        )}
+                        <span className="truncate">{ch.name}</span>
+                      </button>
                     </div>
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onAddSubChannel(ch.id);
                       }}
                       title="Add a Sub-channel"
-                      className="opacity-60 hover:opacity-100 p-1 hover:bg-slate-700 rounded text-slate-300 hover:text-teal-400 transition cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-700 rounded text-slate-300 hover:text-teal-400 transition cursor-pointer shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
-                  </button>
-                  {subChannels.length > 0 && (
+                  </div>
+                  {hasSubs && !isCollapsed && (
                     <div className="pl-6 space-y-1 mt-1">
                       {subChannels.map(sub => (
                         <button
@@ -389,39 +433,34 @@ export default function Sidebar({
         </div>
 
         {/* PWA Installer Section */}
-        <div className="pt-4 border-t border-slate-800 mt-4">
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Desktop & Mobile App
-            </span>
-          </div>
-          <div className="bg-slate-950/30 border border-slate-800/60 p-3 rounded-lg font-sans">
-            {showInstallBtn ? (
-              <>
-                <p className="text-[11px] text-slate-300 leading-normal mb-2.5">
-                  Launch from your dock or home screen. Work in a clean standalone window with full offline caching.
-                </p>
+        {!window.matchMedia('(display-mode: standalone)').matches && (
+          <div className="pt-4 border-t border-slate-800 mt-4">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Install to Desktop
+              </span>
+            </div>
+            <div className="bg-slate-950/30 border border-slate-800/60 p-3 rounded-lg font-sans">
+              <p className="text-[11px] text-slate-300 leading-normal mb-2.5">
+                Install this app on your desktop or laptop for a clean, standalone experience.
+              </p>
+              
+              {deferredPrompt ? (
                 <button
                   onClick={handleInstallClick}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs py-2 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer animate-pulse"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Install on Laptop
+                  <Plus className="w-3.5 h-3.5" /> Click here to Install
                 </button>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-[11px] text-slate-400 leading-normal">
-                  This app supports PWA standalone mode. Install it to access from your home screen or desktop.
-                </p>
+              ) : (
                 <div className="text-[10px] bg-slate-900/50 p-2 rounded text-slate-500 border border-slate-800/40 leading-relaxed">
-                  <span className="font-semibold text-slate-300 block mb-0.5">How to install manually:</span>
-                  • <span className="text-slate-400">Chrome/Edge:</span> Click the <span className="text-teal-400 font-medium">Install App icon</span> in your browser's address bar.
-                  <br />• <span className="text-slate-400">Mobile/Safari:</span> Tap <span className="text-teal-400 font-medium">Share</span> then select <span className="text-teal-400 font-medium">"Add to Home Screen"</span>.
+                  <span className="font-semibold text-slate-300 block mb-0.5">How to install:</span>
+                  Click the <span className="text-teal-400 font-medium">Install App icon</span> in your browser's address bar to add this to your desktop.
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Footer Profile Details */}

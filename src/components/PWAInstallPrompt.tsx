@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Download, X, Sparkles, Monitor, Smartphone, Check, HelpCircle } from 'lucide-react';
+import { Download, X, Sparkles, Monitor, Smartphone, Check, HelpCircle, Bell } from 'lucide-react';
+import { requestNotificationPermission } from '../utils/notifications';
 
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -110,6 +111,15 @@ export default function PWAInstallPrompt() {
                 </p>
 
                 <div className="flex flex-col gap-2">
+                  <button
+                    onClick={async () => {
+                      await requestNotificationPermission();
+                    }}
+                    className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs py-2 px-4 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Bell className="w-3.5 h-3.5" /> Enable Notifications
+                  </button>
+
                   {deferredPrompt ? (
                     <button
                       onClick={handleInstallClick}

@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   Sparkles,
   UserPlus,
-  Key
+  Key,
+  Edit
 } from 'lucide-react';
 import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -45,6 +46,11 @@ export default function AdminPanel({
   const [targetRole, setTargetRole] = useState<UserRole>(UserRole.MEMBER);
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
   const [deletingChannelInProgress, setDeletingChannelInProgress] = useState(false);
+
+  // Edit Channel states
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
+  const [editingChannelName, setEditingChannelName] = useState('');
+  const [editingChannelDesc, setEditingChannelDesc] = useState('');
   
   // Create Channel states
   const [newChannelName, setNewChannelName] = useState('');
@@ -227,6 +233,43 @@ export default function AdminPanel({
     }
   };
 
+  // Start editing channel
+  const handleStartEditChannel = (ch: Channel) => {
+    setEditingChannelId(ch.id);
+    setEditingChannelName(ch.name);
+    setEditingChannelDesc(ch.description || '');
+  };
+
+  // Save edited channel details
+  const handleSaveChannelEdit = async (channelId: string) => {
+    const trimmedName = editingChannelName.trim().toLowerCase().replace(/[^a-z0-9\-]+/g, '');
+    if (!trimmedName) {
+      alert('Channel name cannot be empty');
+      return;
+    }
+    try {
+      const chRef = doc(db, 'workspaces', userProfile.workspaceId, 'channels', channelId);
+      await updateDoc(chRef, {
+        name: trimmedName,
+        description: editingChannelDesc.trim()
+      });
+
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'channel_updated',
+        `Admin renamed/updated channel to #${trimmedName}`
+      );
+
+      setEditingChannelId(null);
+      onRefreshWorkspaceData();
+    } catch (err: any) {
+      console.error('Error updating channel:', err);
+      alert('Error updating channel: ' + err.message);
+    }
+  };
+
   // Assign Team Leader to channel
   const handleAssignChannelLeader = async (channelId: string, leaderId: string) => {
     try {
@@ -350,62 +393,114 @@ export default function AdminPanel({
             </h2>
 
             <div className="divide-y divide-slate-100">
-              {channels.map((ch) => (
-                <div key={ch.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <div className="flex items-center space-x-1.5">
-                      <Hash className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="font-bold text-xs text-slate-800 capitalize">
-                        {ch.name} {ch.isArchived && '(Archived)'}
-                      </span>
+              {channels.map((ch) => {
+                const isEditing = editingChannelId === ch.id;
+                return (
+                  <div key={ch.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      {isEditing ? (
+                        <div className="space-y-1.5 max-w-sm">
+                          <div className="flex items-center space-x-1">
+                            <span className="text-slate-400 text-xs font-mono">#</span>
+                            <input
+                              type="text"
+                              value={editingChannelName}
+                              onChange={(e) => setEditingChannelName(e.target.value)}
+                              className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-800 font-bold focus:ring-1 focus:ring-teal-500 outline-none w-full"
+                              placeholder="channel-name"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={editingChannelDesc}
+                            onChange={(e) => setEditingChannelDesc(e.target.value)}
+                            className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[11px] text-slate-600 focus:ring-1 focus:ring-teal-500 outline-none w-full"
+                            placeholder="Channel description"
+                          />
+                          <div className="flex items-center space-x-2 pt-1">
+                            <button
+                              onClick={() => handleSaveChannelEdit(ch.id)}
+                              className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white font-bold text-[10px] rounded transition shadow-sm cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingChannelId(null)}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-[10px] rounded transition cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center space-x-1.5">
+                            <Hash className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="font-bold text-xs text-slate-800 capitalize">
+                              {ch.name} {ch.isArchived && '(Archived)'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 leading-relaxed max-w-sm mt-0.5">{ch.description}</div>
+                        </>
+                      )}
                     </div>
-                    <div className="text-[11px] text-slate-500 leading-relaxed max-w-sm mt-0.5">{ch.description}</div>
-                  </div>
 
-                  <div className="flex items-center space-x-3">
-                    {/* Leader Dropdown */}
-                    {!ch.isArchived && (
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-[10px] text-slate-400">Lead:</span>
-                        <select
-                          value={ch.assignedLeaderId || ''}
-                          onChange={(e) => handleAssignChannelLeader(ch.id, e.target.value)}
-                          className="bg-slate-100 border-none rounded px-2 py-1 text-xs text-teal-600 font-bold"
+                    <div className="flex items-center space-x-3">
+                      {/* Leader Dropdown */}
+                      {!ch.isArchived && (
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-[10px] text-slate-400">Lead:</span>
+                          <select
+                            value={ch.assignedLeaderId || ''}
+                            onChange={(e) => handleAssignChannelLeader(ch.id, e.target.value)}
+                            className="bg-slate-100 border-none rounded px-2 py-1 text-xs text-teal-600 font-bold"
+                          >
+                            <option value="">Unassigned</option>
+                            {teamLeaders.map((lead) => (
+                              <option key={lead.uid} value={lead.uid}>
+                                {lead.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Edit button */}
+                      {!isEditing && (
+                        <button
+                          onClick={() => handleStartEditChannel(ch)}
+                          title="Edit Channel"
+                          className="p-1 text-slate-400 hover:text-teal-600 rounded transition hover:bg-teal-50 cursor-pointer"
                         >
-                          <option value="">Unassigned</option>
-                          {teamLeaders.map((lead) => (
-                            <option key={lead.uid} value={lead.uid}>
-                              {lead.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      )}
 
-                    {/* Archive button */}
-                    {!ch.isArchived && ch.name !== 'general' && (
-                      <button
-                        onClick={() => handleArchiveChannel(ch)}
-                        title="Archive Channel"
-                        className="p-1 text-slate-400 hover:text-rose-500 rounded transition hover:bg-rose-50"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                      {/* Archive button */}
+                      {!ch.isArchived && ch.name !== 'general' && (
+                        <button
+                          onClick={() => handleArchiveChannel(ch)}
+                          title="Archive Channel"
+                          className="p-1 text-slate-400 hover:text-rose-500 rounded transition hover:bg-rose-50 cursor-pointer"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      )}
 
-                    {/* Delete button */}
-                    {ch.name !== 'general' && (
-                      <button
-                        onClick={() => handleDeleteChannel(ch)}
-                        title="Delete Channel Permanently"
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                      {/* Delete button */}
+                      {ch.name !== 'general' && (
+                        <button
+                          onClick={() => handleDeleteChannel(ch)}
+                          title="Delete Channel Permanently"
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition hover:bg-rose-50 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

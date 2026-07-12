@@ -4,8 +4,9 @@
  */
 
 import { collection, doc, addDoc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
-import { Task, UserProfile, Notification, UserNotificationSettings } from '../types';
+import { db, messaging } from '../firebase';
+import { getToken } from 'firebase/messaging';
+import { Task, UserProfile, Notification as NotificationType, UserNotificationSettings } from '../types';
 
 export const DEFAULT_NOTIFICATION_SETTINGS: UserNotificationSettings = {
   pwaEnabled: true,
@@ -15,6 +16,20 @@ export const DEFAULT_NOTIFICATION_SETTINGS: UserNotificationSettings = {
   onCommentAdded: true,
   onTaskDeleted: true,
 };
+
+export async function requestNotificationPermission() {
+  try {
+    const permission = await window.Notification.requestPermission();
+    if (permission === 'granted') {
+      const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY_HERE' }); // Note: Replace with actual key or fetch from server if needed
+      console.log('Notification permission granted. Token:', token);
+      return token;
+    }
+  } catch (err) {
+    console.error('Error requesting notification permission:', err);
+  }
+  return null;
+}
 
 /**
  * Generate a highly polished corporate HTML email template for workspace notifications.

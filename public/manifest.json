@@ -19,6 +19,7 @@
   "background_color": "#0f172a",
   "theme_color": "#0d9488",
   "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay"],
   "orientation": "any",
   "scope": "/"
 }
