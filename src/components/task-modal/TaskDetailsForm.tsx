@@ -113,7 +113,6 @@ export default function TaskDetailsForm({
       <div>
         <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target</label>
         <select
-          required
           value={targetId || ''}
           onChange={(e) => setTargetId(e.target.value === '' ? null : e.target.value)}
           className="w-full bg-slate-100 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none"
@@ -186,9 +185,12 @@ export default function TaskDetailsForm({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="pl-9 w-full bg-slate-100 border-none rounded-lg py-2 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none"
+              disabled={task?.status === TaskStatus.COMPLETED}
+              className="pl-9 w-full bg-slate-100 border-none rounded-lg py-2 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <option value={TaskStatus.TODO}>To Do</option>
+              {(!task || task.status === TaskStatus.TODO) && (
+                <option value={TaskStatus.TODO}>To Do</option>
+              )}
               <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
               <option value={TaskStatus.REVIEW}>For Review</option>
               <option value={TaskStatus.COMPLETED}>Completed</option>

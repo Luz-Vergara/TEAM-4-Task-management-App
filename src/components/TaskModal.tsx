@@ -211,6 +211,19 @@ export default function TaskModal({
 
   const handleWorkflowTransition = async (newStatus: TaskStatus) => {
     if (!task || isTransitioning) return;
+
+    // Strict business rules for task transitions:
+    // 1. Completed tasks cannot be moved.
+    if (status === TaskStatus.COMPLETED) {
+      console.warn("Completed tasks cannot be moved or have their status changed.");
+      return;
+    }
+    // 2. Tasks cannot be moved back to To Do status.
+    if (newStatus === TaskStatus.TODO && status !== TaskStatus.TODO) {
+      console.warn("Tasks that are in progress or under review cannot be moved back to the To Do list.");
+      return;
+    }
+
     setIsTransitioning(true);
 
     try {

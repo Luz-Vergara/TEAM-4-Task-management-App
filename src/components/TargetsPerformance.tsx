@@ -254,6 +254,7 @@ export default function TargetsPerformance({ userProfile, channels, members, tas
           members={members}
           workspaceId={userProfile.workspaceId}
           tasks={tasks}
+          userProfile={userProfile}
         />
       </div>
 

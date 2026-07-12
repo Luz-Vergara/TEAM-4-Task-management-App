@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, Notification as WorkspaceNotification, UserNotificationSettings, Task } from '../types';
-import { DEFAULT_NOTIFICATION_SETTINGS } from '../utils/notifications';
-import { Bell, Mail, Monitor, X, Eye, AlertCircle, Settings, Check, Trash2, ArrowLeft, ExternalLink, FileText, MessageSquare, Calendar, User, Clock, ArrowRight, ArrowUpCircle } from 'lucide-react';
+import { DEFAULT_NOTIFICATION_SETTINGS, checkAndGenerateDueSoonOverdueNotifications } from '../utils/notifications';
+import { Bell, Settings, X, ArrowLeft, ExternalLink, FileText, MessageSquare, Calendar, User, Clock, Target, Trash2, CheckCircle2, Circle } from 'lucide-react';
 
 interface NotificationModalProps {
   isOpen: boolean;
@@ -17,6 +17,27 @@ interface NotificationModalProps {
   onUpdateProfile: (updatedProfile: UserProfile) => void;
   tasks?: Task[];
   onOpenTask?: (task: Task) => void;
+  onSelectChannel?: (channelId: string) => void;
+}
+
+function formatRelativeTime(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHr / 24);
+
+    if (diffSec < 5) return 'Just now';
+    if (diffSec < 60) return `${diffSec} seconds ago`;
+    if (diffMin < 60) return `${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
+    if (diffHr < 24) return `${diffHr} ${diffHr === 1 ? 'hour' : 'hours'} ago`;
+    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+  } catch (e) {
+    return 'Recently';
+  }
 }
 
 export default function NotificationModal({
@@ -25,14 +46,13 @@ export default function NotificationModal({
   userProfile,
   onUpdateProfile,
   tasks = [],
-  onOpenTask
+  onOpenTask,
+  onSelectChannel
 }: NotificationModalProps) {
   const [activeTab, setActiveTab] = useState<'inbox' | 'settings'>('inbox');
   const [notifications, setNotifications] = useState<WorkspaceNotification[]>([]);
   const [selectedNotification, setSelectedNotification] = useState<WorkspaceNotification | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<string>(
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
-  );
+  const [subFilter, setSubFilter] = useState<'all' | 'unread' | 'mentions' | 'tasks' | 'targets'>('all');
   
   // Settings local state
   const currentSettings = userProfile.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS;
@@ -57,20 +77,24 @@ export default function NotificationModal({
     setOnTaskDeleted(freshSettings.onTaskDeleted);
   }, [userProfile]);
 
-  // Read notifications from Firestore in real-time
+  // Run dynamic due soon / overdue scans when opening Notification Center
+  useEffect(() => {
+    if (isOpen && userProfile && tasks.length > 0) {
+      checkAndGenerateDueSoonOverdueNotifications(userProfile.workspaceId, userProfile, tasks);
+    }
+  }, [isOpen, userProfile, tasks]);
+
+  // Read personal notifications from Firestore in real-time
   useEffect(() => {
     if (!isOpen || !userProfile) return;
 
     const notifRef = collection(db, 'workspaces', userProfile.workspaceId, 'notifications');
-    // Workspace Administrators can see all notification dispatches in the workspace to monitor status,
-    // while standard users only see notifications dispatched to themselves.
-    const q = userProfile.role === 'admin'
-      ? query(notifRef, orderBy('createdAt', 'desc'))
-      : query(
-          notifRef,
-          where('recipientUid', '==', userProfile.uid),
-          orderBy('createdAt', 'desc')
-        );
+    // Personal Notifications: Only load notifications intended for the logged-in user
+    const q = query(
+      notifRef,
+      where('recipientUid', '==', userProfile.uid),
+      orderBy('createdAt', 'desc')
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: WorkspaceNotification[] = [];
@@ -86,31 +110,6 @@ export default function NotificationModal({
   }, [isOpen, userProfile]);
 
   if (!isOpen) return null;
-
-  // Request native browser notification permission
-  const requestPWAPermission = async () => {
-    if (!('Notification' in window)) {
-      alert('This browser does not support desktop notifications.');
-      return;
-    }
-
-    try {
-      const permission = await Notification.requestPermission();
-      setPermissionStatus(permission);
-      if (permission === 'granted') {
-        setPwaEnabled(true);
-        // Show test notification
-        new Notification('VibeCheck Notifications Enabled!', {
-          body: 'You will now receive instant desktop PWA alerts for workflow edits.',
-          icon: '/favicon.ico'
-        });
-      } else if (permission === 'denied') {
-        alert('Notification permission was denied. Please update your browser settings to allow notifications for this site.');
-      }
-    } catch (e) {
-      console.error('Error requesting notification permission:', e);
-    }
-  };
 
   // Save updated settings to Firestore
   const handleSaveSettings = async (e?: React.FormEvent) => {
@@ -141,7 +140,7 @@ export default function NotificationModal({
       setSuccessMessage('Notification preferences updated successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
-      console.error('Error saving notification preferences:', error);
+      console.error('Error saving preferences:', error);
       alert('Failed to save settings.');
     } finally {
       setIsSaving(false);
@@ -191,20 +190,61 @@ export default function NotificationModal({
     }
   };
 
+  const handleOpenRelatedTask = (notif: WorkspaceNotification) => {
+    if (!notif.taskId) return;
+    
+    // Mark as read first
+    if (!notif.isRead) {
+      const ref = doc(db, 'workspaces', userProfile.workspaceId, 'notifications', notif.id);
+      updateDoc(ref, { isRead: true }).catch(err => console.error(err));
+    }
+
+    // Try finding the matching task
+    const liveTask = tasks.find(t => t.id === notif.taskId);
+    if (liveTask) {
+      // Open exact channel if provided
+      if (notif.channelId && onSelectChannel) {
+        onSelectChannel(notif.channelId);
+      }
+      if (onOpenTask) {
+        onOpenTask(liveTask);
+      }
+    } else {
+      alert('This task has been archived, deleted, or is no longer in this workspace.');
+    }
+  };
+
+  // Filtering Logic
+  const filteredNotifications = notifications.filter((notif) => {
+    if (subFilter === 'unread') return !notif.isRead;
+    if (subFilter === 'mentions') return notif.notificationType === 'mention_comment';
+    if (subFilter === 'tasks') {
+      return notif.notificationType?.startsWith('task_') || 
+             notif.notificationType === 'comment_added' || 
+             notif.notificationType === 'mention_comment';
+    }
+    if (subFilter === 'targets') {
+      return notif.notificationType?.startsWith('target_') || 
+             notif.notificationType === 'target_assigned' || 
+             notif.notificationType === 'target_progress';
+    }
+    return true; // 'all'
+  });
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-none animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[650px] flex overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
         
-        {/* Left Side Navigation & Settings Panel */}
-        <div className="w-80 bg-slate-50 border-r border-slate-100 flex flex-col shrink-0">
+        {/* Left Sidebar Layout */}
+        <div className="w-72 bg-slate-50 border-r border-slate-100 flex flex-col shrink-0">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
               <div className="p-2 bg-teal-50 rounded-xl">
                 <Bell className="w-5 h-5 text-teal-600" />
               </div>
               <div>
-                <h3 className="font-extrabold text-slate-800 text-base">Alert & Mail Hub</h3>
-                <p className="text-[10px] text-slate-400 font-medium">Configure PWA & Email</p>
+                <h3 className="font-extrabold text-slate-800 text-base">Notification Center</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Your personal workspace notifications</p>
               </div>
             </div>
           </div>
@@ -222,7 +262,7 @@ export default function NotificationModal({
               }`}
             >
               <Bell className="w-4 h-4 shrink-0" />
-              <span>Notification Feed ({notifications.filter(n => !n.isRead).length} unread)</span>
+              <span>Workspace Inbox ({notifications.filter(n => !n.isRead).length} unread)</span>
             </button>
 
             <button
@@ -237,43 +277,14 @@ export default function NotificationModal({
               }`}
             >
               <Settings className="w-4 h-4 shrink-0" />
-              <span>Notification Settings</span>
+              <span>Configure Settings</span>
             </button>
           </div>
 
-          {/* Connected Mail Tag */}
-          <div className="p-4 mx-4 mt-4 mb-2 bg-teal-50/50 rounded-xl border border-teal-100/50">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-teal-500 rounded-lg text-white">
-                <Mail className="w-3.5 h-3.5" />
-              </div>
-              <div className="overflow-hidden">
-                <p className="text-[9px] font-bold text-teal-800 uppercase tracking-wider">Connected Gmail Address</p>
-                <p className="text-xs font-bold text-slate-700 truncate" title={userProfile.email}>{userProfile.email}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile Access QR Code Card */}
-          <div className="mx-4 mb-4 p-4 bg-slate-100 rounded-xl border border-slate-200/50 flex flex-col items-center text-center">
-            <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">📱 Open on Mobile</span>
-              <span className="bg-indigo-100 text-indigo-700 font-extrabold text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                Real-time Sync
-              </span>
-            </div>
-            
-            <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200/50 mb-2">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&color=0f172a&data=${encodeURIComponent(window.location.origin)}`}
-                alt="Scan to open on phone"
-                className="w-[100px] h-[100px]"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            
+          {/* Simple Clean Guide Card in Page Margin */}
+          <div className="m-4 p-4 bg-slate-100 border border-slate-200/50 rounded-xl text-center">
             <p className="text-[10px] text-slate-500 leading-normal font-medium">
-              Scan with your phone to open, tap <strong>"Add to Home Screen"</strong> to install as a PWA, and authorize mobile notifications!
+              This panel aggregates all personal mentions, direct task assignments, target updates, and due status alerts intended for you.
             </p>
           </div>
         </div>
@@ -294,10 +305,10 @@ export default function NotificationModal({
               )}
               <h4 className="font-bold text-slate-800 text-sm">
                 {selectedNotification
-                  ? 'Email Notification Sandbox'
+                  ? 'Notification Details'
                   : activeTab === 'inbox'
-                  ? 'Notification Dispatch History'
-                  : 'Configure Multi-Channel Alerting'}
+                  ? 'Your Activity Feed'
+                  : 'Configure Alerting Events'}
               </h4>
             </div>
             
@@ -322,14 +333,14 @@ export default function NotificationModal({
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto min-h-0">
             
-            {/* EMAIL PREVIEW SANDBOX (When a notification log is clicked) */}
+            {/* NOTIFICATION DETAILS PANEL */}
             {selectedNotification ? (
               (() => {
                 const liveTask = selectedNotification.taskId
                   ? tasks.find((t) => t.id === selectedNotification.taskId)
-                  : tasks.find((t) => t.title && selectedNotification.emailSubject?.includes(t.title));
+                  : null;
 
-                const taskTitle = liveTask?.title || selectedNotification.taskTitle || "Archived Task";
+                const taskTitle = liveTask?.title || selectedNotification.taskTitle || "Unavailable Task";
                 const taskDesc = liveTask?.description || selectedNotification.taskDescription || "";
                 const taskStatus = liveTask?.status || selectedNotification.taskStatus || "";
                 const taskPriority = liveTask?.priority || selectedNotification.taskPriority || "";
@@ -340,54 +351,57 @@ export default function NotificationModal({
                 let actionBg = "bg-slate-50 border-slate-100 text-slate-700";
                 let ActionIconComp = Bell;
 
-                switch (selectedNotification.action) {
-                  case 'task_created':
-                    actionLabel = "Task Created";
+                switch (selectedNotification.notificationType) {
+                  case 'task_assigned':
+                    actionLabel = "Task Assigned";
                     actionBg = "bg-emerald-50 border-emerald-100 text-emerald-700";
-                    ActionIconComp = ArrowUpCircle;
+                    ActionIconComp = User;
+                    break;
+                  case 'mention_comment':
+                    actionLabel = "Mentioned In Comment";
+                    actionBg = "bg-purple-50 border-purple-100 text-purple-700";
+                    ActionIconComp = MessageSquare;
+                    break;
+                  case 'comment_added':
+                    actionLabel = "New Comment";
+                    actionBg = "bg-indigo-50 border-indigo-100 text-indigo-700";
+                    ActionIconComp = MessageSquare;
                     break;
                   case 'task_status_changed':
                     actionLabel = "Status Updated";
                     actionBg = "bg-blue-50 border-blue-100 text-blue-700";
                     ActionIconComp = Clock;
                     break;
-                  case 'comment_added':
-                    actionLabel = "Comment Added";
-                    actionBg = "bg-purple-50 border-purple-100 text-purple-700";
-                    ActionIconComp = MessageSquare;
+                  case 'task_due_soon':
+                    actionLabel = "Task Due Soon";
+                    actionBg = "bg-amber-50 border-amber-100 text-amber-700";
+                    ActionIconComp = Calendar;
                     break;
-                  case 'task_deleted':
-                    actionLabel = "Task Deleted";
+                  case 'task_overdue':
+                    actionLabel = "Task Overdue";
                     actionBg = "bg-rose-50 border-rose-100 text-rose-700";
-                    ActionIconComp = Trash2;
+                    ActionIconComp = Clock;
                     break;
-                  case 'user_joined':
-                    actionLabel = "Member Joined";
+                  case 'target_assigned':
+                    actionLabel = "Target Assigned";
                     actionBg = "bg-teal-50 border-teal-100 text-teal-700";
-                    ActionIconComp = User;
+                    ActionIconComp = Target;
+                    break;
+                  case 'target_progress':
+                    actionLabel = "Target Progress";
+                    actionBg = "bg-cyan-50 border-cyan-100 text-cyan-700";
+                    ActionIconComp = Target;
                     break;
                 }
 
                 return (
                   <div className="h-full flex flex-col bg-slate-50 overflow-y-auto">
-                    {/* Simulated Email Envelope Header or Action Header */}
-                    <div className="bg-white border-b border-slate-200 p-5 shrink-0 flex flex-col space-y-3 shadow-sm font-sans">
+                    <div className="bg-white border-b border-slate-200 p-5 shrink-0 flex flex-col space-y-3 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${actionBg}`}>
-                            <ActionIconComp className="w-3.5 h-3.5" />
-                            {actionLabel}
-                          </span>
-                          {liveTask ? (
-                            <span className="bg-teal-500/10 text-teal-700 border border-teal-500/15 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider">
-                              Live In Workspace
-                            </span>
-                          ) : (
-                            <span className="bg-slate-150 text-slate-500 border border-slate-200/80 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider">
-                              Archived/Deleted
-                            </span>
-                          )}
-                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${actionBg}`}>
+                          <ActionIconComp className="w-3.5 h-3.5" />
+                          {actionLabel}
+                        </span>
                         <span className="text-xs font-semibold text-slate-400">
                           {new Date(selectedNotification.createdAt).toLocaleString()}
                         </span>
@@ -395,111 +409,109 @@ export default function NotificationModal({
 
                       <div className="flex flex-col space-y-1.5">
                         <h4 className="font-extrabold text-slate-800 text-base leading-snug">
-                          {selectedNotification.details}
+                          {selectedNotification.message || selectedNotification.details}
                         </h4>
-                        <div className="flex items-center gap-1 text-xs text-slate-500">
-                          <span className="font-semibold text-slate-600">Triggered by:</span>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span className="font-semibold text-slate-600">Performed by:</span>
                           <span className="font-bold text-slate-700">{selectedNotification.senderName}</span>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-semibold text-slate-600">Delivered to:</span>
-                          <span className="font-bold text-slate-700 text-slate-600">{selectedNotification.recipientName} ({selectedNotification.recipientEmail})</span>
+                          {selectedNotification.channelName && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-semibold text-slate-600">Channel:</span>
+                              <span className="font-bold text-slate-700">#{selectedNotification.channelName}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Workspace Task details view */}
-                    <div className="p-6 space-y-6 flex-1 max-w-2xl mx-auto w-full font-sans">
-                      
-                      {/* Interactive Task Details Card */}
-                      <div className="space-y-4">
-                        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
-                          <div className="flex items-center justify-between">
-                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                              <FileText className="w-3.5 h-3.5 text-slate-400" /> Related Task Info
-                            </h5>
-                            {liveTask && (
-                              <span className="bg-teal-500/10 text-teal-600 font-bold text-[9px] px-1.5 py-0.5 rounded uppercase">
-                                Interactive State
-                              </span>
+                    <div className="p-6 space-y-6 flex-1 max-w-2xl mx-auto w-full">
+                      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5 text-slate-400" /> Reference Detail
+                          </h5>
+                          {liveTask && (
+                            <span className="bg-teal-500/10 text-teal-700 border border-teal-500/15 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase">
+                              Active Task
+                            </span>
+                          )}
+                        </div>
+
+                        {selectedNotification.notificationType === 'comment_added' && (
+                          <div className="p-3.5 bg-purple-50 border border-purple-100/50 rounded-xl text-xs text-slate-600">
+                            <span className="font-bold text-purple-800 flex items-center gap-1.5 mb-1.5">
+                              <MessageSquare className="w-3.5 h-3.5 text-purple-600" /> Discussion Comment
+                            </span>
+                            <p className="italic text-[11px] leading-relaxed text-slate-700">
+                              "{selectedNotification.details.split(' commented: ')[1] || selectedNotification.details}"
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="text-base font-extrabold text-slate-800 tracking-tight leading-snug">
+                              {taskTitle}
+                            </h3>
+                            {taskDesc && (
+                              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                                {taskDesc}
+                              </p>
                             )}
                           </div>
 
-                          {/* Trigger Event Specific info if comment was added */}
-                          {selectedNotification.action === 'comment_added' && (
-                            <div className="p-3.5 bg-purple-50 border border-purple-100/50 rounded-xl text-xs text-slate-600 space-y-1.5">
-                              <span className="font-bold text-purple-800 flex items-center gap-1.5">
-                                <MessageSquare className="w-3.5 h-3.5 text-purple-600" /> Conversation Comment Added
-                              </span>
-                              <p className="italic text-[11px] leading-relaxed text-slate-700">
-                                "{selectedNotification.details.split(' commented: ')[1] || selectedNotification.details}"
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Task Details Card body */}
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="text-base font-extrabold text-slate-800 tracking-tight leading-snug">
-                                {taskTitle || "Unavailable"}
-                              </h3>
-                              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                                {taskDesc || "No task description details captured in this log snapshot."}
-                              </p>
-                            </div>
-
-                            {/* Task properties table */}
+                          {selectedNotification.taskId && (
                             <div className="grid grid-cols-2 gap-3.5 pt-4 border-t border-slate-100 text-xs">
-                              <div className="p-2.5 bg-slate-50 rounded-lg">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Workflow Status</span>
-                                <span className="font-bold text-slate-700 uppercase mt-0.5 block">
-                                  {taskStatus || "N/A"}
-                                </span>
-                              </div>
+                              {taskStatus && (
+                                <div className="p-2.5 bg-slate-50 rounded-lg">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block font-semibold">Workflow Status</span>
+                                  <span className="font-bold text-slate-700 uppercase mt-0.5 block">
+                                    {taskStatus}
+                                  </span>
+                                </div>
+                              )}
 
-                              <div className="p-2.5 bg-slate-50 rounded-lg">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Priority Tier</span>
-                                <span className={`font-bold uppercase mt-0.5 block ${
-                                  taskPriority === 'high' ? 'text-rose-500' : taskPriority === 'medium' ? 'text-amber-500' : taskPriority === 'low' ? 'text-emerald-500' : 'text-slate-500'
-                                }`}>
-                                  {taskPriority || "N/A"}
-                                </span>
-                              </div>
+                              {taskPriority && (
+                                <div className="p-2.5 bg-slate-50 rounded-lg">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block font-semibold">Priority Tier</span>
+                                  <span className={`font-bold uppercase mt-0.5 block ${
+                                    taskPriority === 'high' ? 'text-rose-500' : taskPriority === 'medium' ? 'text-amber-500' : 'text-emerald-500'
+                                  }`}>
+                                    {taskPriority}
+                                  </span>
+                                </div>
+                              )}
 
                               {taskDueDate && (
                                 <div className="p-2.5 bg-slate-50 rounded-lg col-span-2 flex items-center gap-2">
                                   <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                                   <div>
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Due Date</span>
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block font-semibold">Due Date</span>
                                     <span className="font-bold text-slate-700">{taskDueDate}</span>
                                   </div>
                                 </div>
                               )}
                             </div>
+                          )}
 
-                            {/* Action Trigger button to open Task Modal */}
-                            {liveTask && onOpenTask ? (
-                              <div className="pt-3">
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenTask(liveTask)}
-                                  className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-sm hover:shadow transition flex items-center justify-center gap-2 cursor-pointer group"
-                                >
-                                  <span>Open Interactive Task & Comments</span>
-                                  <ExternalLink className="w-4 h-4 transition group-hover:translate-x-0.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-[11px] leading-relaxed flex items-start gap-1.5 mt-2">
-                                <AlertCircle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
-                                <span>
-                                  <strong>Task Not Editable:</strong> This task has been deleted, archived, or is no longer in the active workspace. This view displays the historical snapshot from the time of the action.
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                          {selectedNotification.taskId && liveTask && onOpenTask && (
+                            <div className="pt-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  handleOpenRelatedTask(selectedNotification);
+                                }}
+                                className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                <span>Go to Related Channel & Task</span>
+                                <ExternalLink className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
-
                     </div>
                   </div>
                 );
@@ -507,97 +519,132 @@ export default function NotificationModal({
             ) : activeTab === 'inbox' ? (
               /* NOTIFICATION FEED LIST */
               <div className="p-6 h-full flex flex-col">
-                {notifications.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+                
+                {/* Horizontal Filter Tabs bar */}
+                <div className="flex items-center gap-1.5 border-b border-slate-100 pb-4 mb-4 overflow-x-auto shrink-0 select-none">
+                  {(['all', 'unread', 'mentions', 'tasks', 'targets'] as const).map((filter) => {
+                    const label = filter.charAt(0).toUpperCase() + filter.slice(1);
+                    const isActive = subFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setSubFilter(filter)}
+                        className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer shrink-0 ${
+                          isActive
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {filteredNotifications.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 select-none">
                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mb-4">
                       <Bell className="w-6 h-6 text-slate-300" />
                     </div>
-                    <h5 className="font-bold text-slate-700 text-sm">No notification logs yet</h5>
+                    <h5 className="font-bold text-slate-700 text-sm">No notifications found</h5>
                     <p className="text-xs text-slate-400 max-w-sm mt-1">
-                      Whenever you or your team make updates to tasks, comments, or workflow stages, dispatched alerts will record and display here in real-time.
+                      No matching personal notifications were found in your feed at this time.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-slate-400 font-medium px-1 pb-2">
-                      Click any dispatch record below to view the styled HTML Email Template that would be sent directly to your Gmail account.
-                    </p>
+                  <div className="space-y-3.5">
                     <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
-                      {notifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          onClick={() => handleSelectNotification(notif)}
-                          className={`p-4 flex items-start justify-between gap-4 transition hover:bg-slate-50 cursor-pointer ${
-                            !notif.isRead ? 'bg-teal-50/20 font-medium border-l-4 border-l-teal-500' : 'bg-white'
-                          }`}
-                        >
-                          <div className="flex items-start space-x-3 min-w-0">
-                            <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
-                              !notif.isRead ? 'bg-teal-500/10 text-teal-600' : 'bg-slate-100 text-slate-400'
-                            }`}>
-                              <Bell className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-bold text-slate-800">
-                                  {notif.senderName}
-                                  {userProfile.role === 'admin' && (
-                                    <span className="text-slate-450 font-normal">
-                                      {" "}&rarr; notified <strong>{notif.recipientName}</strong> ({notif.recipientEmail})
+                      {filteredNotifications.map((notif) => {
+                        // Check if task exists and resolving variables
+                        const isComment = notif.notificationType === 'comment_added' || notif.notificationType === 'mention_comment';
+                        const isTarget = notif.notificationType === 'target_assigned' || notif.notificationType === 'target_progress';
+                        const isTaskAssigned = notif.notificationType === 'task_assigned';
+
+                        let highlightLabel = "";
+                        if (isComment) highlightLabel = "Comment";
+                        else if (isTarget) highlightLabel = "Target Metric";
+                        else if (isTaskAssigned) highlightLabel = "Task Assignment";
+                        else highlightLabel = "Workspace Update";
+
+                        return (
+                          <div
+                            key={notif.id}
+                            onClick={() => handleSelectNotification(notif)}
+                            className={`p-4 flex items-start justify-between gap-4 transition hover:bg-slate-50/80 cursor-pointer ${
+                              !notif.isRead ? 'bg-slate-50 border-l-4 border-l-teal-500' : 'bg-white'
+                            }`}
+                          >
+                            <div className="flex items-start space-x-3 min-w-0">
+                              <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                                !notif.isRead ? 'bg-teal-500/10 text-teal-600 font-semibold' : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {isTarget ? <Target className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                              </div>
+                              
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="text-xs font-bold text-slate-800">
+                                    {notif.senderName}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    {formatRelativeTime(notif.createdAt)}
+                                  </span>
+                                  {!notif.isRead && (
+                                    <span className="bg-blue-600 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-90">
+                                      New
                                     </span>
                                   )}
-                                </span>
-                                <span className="text-[10px] text-slate-400">
-                                  {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                {!notif.isRead && (
-                                  <span className="bg-teal-500 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-90">
-                                    New
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-slate-600 mt-1 line-clamp-1">{notif.details}</p>
-                              
-                              <div className="flex items-center gap-3 mt-2">
-                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                                  notif.emailDelivered 
-                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/50' 
-                                    : 'bg-slate-50 text-slate-400 border border-slate-200/50'
-                                }`}>
-                                  <Mail className="w-2.5 h-2.5" /> Email Sent
-                                </span>
-                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                                  notif.pwaDelivered 
-                                    ? 'bg-blue-50 text-blue-600 border border-blue-200/50' 
-                                    : 'bg-slate-50 text-slate-400 border border-slate-200/50'
-                                }`}>
-                                  <Monitor className="w-2.5 h-2.5" /> PWA Alerted
-                                </span>
+                                  {highlightLabel && (
+                                    <span className="bg-slate-100 text-slate-500 text-[8px] font-bold px-1.5 py-0.5 rounded">
+                                      {highlightLabel}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-xs font-semibold text-slate-700 leading-snug">
+                                  {notif.message || notif.details}
+                                </p>
+
+                                {/* Channel and Target details matching layout request */}
+                                <div className="flex flex-col gap-1 mt-2 text-[11px] text-slate-500 font-medium border-l-2 border-slate-100 pl-2">
+                                  {notif.channelName && (
+                                    <div>
+                                      Channel: <span className="font-bold text-slate-600">#{notif.channelName}</span>
+                                    </div>
+                                  )}
+                                  {notif.taskTitle && (
+                                    <div>
+                                      Task: <span className="font-bold text-slate-600">"{notif.taskTitle}"</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectNotification(notif);
-                              }}
-                              className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition cursor-pointer"
-                              title="Preview Email template"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteNotification(notif.id, e)}
-                              className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition cursor-pointer"
-                              title="Delete notification"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1 shrink-0 self-center">
+                              {notif.taskId && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenRelatedTask(notif);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                                  title="Open Related Task"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => handleDeleteNotification(notif.id, e)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title="Delete Notification"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -609,7 +656,7 @@ export default function NotificationModal({
                 {/* Success Message Banner */}
                 {successMessage && (
                   <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center space-x-2.5 text-xs text-emerald-700 font-semibold animate-in slide-in-from-top-2">
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>{successMessage}</span>
                   </div>
                 )}
@@ -618,36 +665,17 @@ export default function NotificationModal({
                 <div className="space-y-4">
                   <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Communication Channels</h5>
                   
-                  {/* PWA / Native Browser Notifications Toggle */}
-                  <div className="p-4 bg-slate-50 hover:bg-slate-100/50 rounded-2xl border border-slate-100/80 transition-all flex items-start justify-between gap-4">
+                  {/* Native Push Alerts Toggle */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all flex items-start justify-between gap-4">
                     <div className="flex gap-3.5">
                       <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0 mt-0.5">
-                        <Monitor className="w-5 h-5" />
+                        <Bell className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-800 text-xs">PWA Push Alerts</span>
-                          <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-full ${
-                            permissionStatus === 'granted' 
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
-                              : 'bg-amber-50 text-amber-600 border border-amber-100'
-                          }`}>
-                            Browser Status: {permissionStatus}
-                          </span>
-                        </div>
+                        <span className="font-bold text-slate-800 text-xs block">In-App Push Alerts</span>
                         <p className="text-slate-400 text-[10px] mt-1 leading-relaxed">
-                          Receive interactive browser push alerts instantly, even when looking at other tabs. Click 'Request/Enable' to authorize.
+                          Receive instant, high-visibility notifications directly within the TEAM 4 Hub platform interface.
                         </p>
-                        
-                        {permissionStatus !== 'granted' && (
-                          <button
-                            type="button"
-                            onClick={requestPWAPermission}
-                            className="mt-2.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[9px] rounded-lg shadow-sm transition cursor-pointer uppercase tracking-wider"
-                          >
-                            Authorize Browser Push
-                          </button>
-                        )}
                       </div>
                     </div>
                     
@@ -663,13 +691,13 @@ export default function NotificationModal({
                   </div>
 
                   {/* Email Notifications Toggle */}
-                  <div className="p-4 bg-slate-50 hover:bg-slate-100/50 rounded-2xl border border-slate-100/80 transition-all flex items-start justify-between gap-4">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all flex items-start justify-between gap-4">
                     <div className="flex gap-3.5">
                       <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl shrink-0 mt-0.5">
-                        <Mail className="w-5 h-5" />
+                        <Clock className="w-5 h-5" />
                       </div>
                       <div>
-                        <span className="font-bold text-slate-800 text-xs">Email Delivery Queue</span>
+                        <span className="font-bold text-slate-800 text-xs block">Email Dispatch Queue</span>
                         <p className="text-slate-400 text-[10px] mt-1 leading-relaxed">
                           Dispatches automated HTML transactional workflow alerts directly to your account email address (<strong>{userProfile.email}</strong>) in real-time.
                         </p>
@@ -726,7 +754,7 @@ export default function NotificationModal({
                     <div className="flex items-center justify-between pt-3 pb-1 select-none">
                       <div>
                         <p className="text-xs font-bold text-slate-700">When discussion comments are added</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Comments or logs added by members inside any tasks</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Comments or mentions inside active tasks</p>
                       </div>
                       <input 
                         type="checkbox" 
@@ -740,7 +768,7 @@ export default function NotificationModal({
                     <div className="flex items-center justify-between pt-3 pb-1 select-none">
                       <div>
                         <p className="text-xs font-bold text-slate-700">When tasks are archived or deleted</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Crucial removal alert for system record changes</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Crucial removal alerts for system record changes</p>
                       </div>
                       <input 
                         type="checkbox" 

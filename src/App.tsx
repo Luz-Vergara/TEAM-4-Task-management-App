@@ -211,6 +211,17 @@ export default function App() {
           finalTask
         );
       } else {
+        // Enforce transition rules for status updates:
+        // 1. Completed tasks are fully locked from status changes.
+        // 2. Tasks cannot be moved back to "To Do".
+        if (taskData.status && taskData.status !== activeTaskForModal.status) {
+          if (activeTaskForModal.status === TaskStatus.COMPLETED) {
+            delete taskData.status;
+          } else if (taskData.status === TaskStatus.TODO && activeTaskForModal.status !== TaskStatus.TODO) {
+            delete taskData.status;
+          }
+        }
+
         // Update task parameters
         const updatePayload = {
           ...taskData,
@@ -296,6 +307,19 @@ export default function App() {
   // Update Task Status directly from board quick switcher
   const handleUpdateTaskStatus = async (task: Task, newStatus: TaskStatus) => {
     if (!userProfile) return;
+
+    // Strict business rules for task transitions:
+    // 1. Completed tasks cannot be moved.
+    if (task.status === TaskStatus.COMPLETED) {
+      console.warn("Completed tasks cannot be moved or have their status changed.");
+      return;
+    }
+    // 2. Tasks cannot be moved back to To Do status.
+    if (newStatus === TaskStatus.TODO && task.status !== TaskStatus.TODO) {
+      console.warn("Tasks that are in progress or under review cannot be moved back to the To Do list.");
+      return;
+    }
+
     try {
       const wId = userProfile.workspaceId;
       const taskDocRef = doc(db, 'workspaces', wId, 'tasks', task.id);
@@ -660,6 +684,9 @@ export default function App() {
           onOpenTask={(task) => {
             setIsNotificationModalOpen(false);
             handleSelectTaskDetails(task);
+          }}
+          onSelectChannel={(channelId) => {
+            handleSelectChannel(channelId);
           }}
         />
       )}

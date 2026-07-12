@@ -342,9 +342,12 @@ export default function ChannelView({
                                     <select
                                       value={task.status}
                                       onChange={(e) => onUpdateTaskStatus(task, e.target.value as TaskStatus)}
-                                      className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[10px] text-teal-600 focus:outline-none cursor-pointer font-bold uppercase tracking-wider"
+                                      disabled={task.status === TaskStatus.COMPLETED}
+                                      className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[10px] text-teal-600 focus:outline-none cursor-pointer font-bold uppercase tracking-wider disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                      <option value={TaskStatus.TODO}>To Do</option>
+                                      {task.status === TaskStatus.TODO && (
+                                        <option value={TaskStatus.TODO}>To Do</option>
+                                      )}
                                       <option value={TaskStatus.IN_PROGRESS}>In Prog</option>
                                       <option value={TaskStatus.REVIEW}>Review</option>
                                       <option value={TaskStatus.COMPLETED}>Done</option>

@@ -180,7 +180,7 @@ export interface Notification {
   recipientName: string;
   senderUid: string;
   senderName: string;
-  action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted' | 'system' | 'user_joined';
+  action: 'task_created' | 'task_status_changed' | 'comment_added' | 'task_deleted' | 'system' | 'user_joined' | 'task_assigned' | 'mention_comment' | 'task_due_soon' | 'task_overdue' | 'target_assigned' | 'target_progress' | string;
   details: string;
   pwaDelivered: boolean;
   emailDelivered: boolean;
@@ -194,4 +194,13 @@ export interface Notification {
   taskStatus?: string | null;
   taskPriority?: string | null;
   taskDueDate?: string | null;
+
+  // New fields for personal Notification Center
+  recipientUserId?: string;
+  actorUserId?: string;
+  channelId?: string | null;
+  channelName?: string | null;
+  targetId?: string | null;
+  notificationType?: string;
+  message?: string;
 }

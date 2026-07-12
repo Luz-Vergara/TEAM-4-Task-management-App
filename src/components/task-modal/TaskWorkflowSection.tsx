@@ -200,9 +200,12 @@ export default function TaskWorkflowSection({
               setStatus(newStatus);
               onSaveTask({ status: newStatus });
             }}
-            className="w-full bg-slate-150 border-none rounded-lg py-1.5 px-3 text-[11px] text-slate-600 font-semibold focus:outline-none appearance-none cursor-pointer"
+            disabled={status === TaskStatus.COMPLETED}
+            className="w-full bg-slate-150 border-none rounded-lg py-1.5 px-3 text-[11px] text-slate-600 font-semibold focus:outline-none appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <option value={TaskStatus.TODO}>To Do</option>
+            {status === TaskStatus.TODO && (
+              <option value={TaskStatus.TODO}>To Do</option>
+            )}
             <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
             <option value={TaskStatus.REVIEW}>For Review</option>
             <option value={TaskStatus.COMPLETED}>Completed</option>

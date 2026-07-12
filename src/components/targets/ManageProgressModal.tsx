@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { Target, Milestone } from '../../types';
+import { Target, Milestone, UserProfile } from '../../types';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { X, Plus, Trash2, CheckCircle, Circle, Award } from 'lucide-react';
+import { dispatchNotification } from '../../utils/notifications';
 
 interface ManageProgressModalProps {
   isOpen: boolean;
   onClose: () => void;
   target: Target;
   workspaceId: string;
+  userProfile: UserProfile;
 }
 
-export default function ManageProgressModal({ isOpen, onClose, target, workspaceId }: ManageProgressModalProps) {
+export default function ManageProgressModal({ isOpen, onClose, target, workspaceId, userProfile }: ManageProgressModalProps) {
   const [accomplishedQty, setAccomplishedQty] = useState<number>(target?.accomplishedQuantity || 0);
   
   // Exclude virtual/augmented milestones and any leaked task milestones to prevent Firestore contamination and duplicate key errors
@@ -37,6 +39,16 @@ export default function ManageProgressModal({ isOpen, onClose, target, workspace
         accomplishedQuantity: accomplishedQty,
         updatedAt: serverTimestamp()
       });
+
+      await dispatchNotification(
+        workspaceId,
+        'target_progress_updated',
+        `${userProfile.name} updated progress on target "${target.name}" to ${accomplishedQty} / ${target.targetQuantity}`,
+        { uid: userProfile.uid, name: userProfile.name },
+        null,
+        { targetId: target.id, notificationType: 'target_progress' }
+      );
+
       onClose();
     } catch (err: any) {
       console.error('Error updating target accomplishment:', err);
@@ -69,6 +81,15 @@ export default function ManageProgressModal({ isOpen, onClose, target, workspace
         updatedAt: serverTimestamp()
       });
 
+      await dispatchNotification(
+        workspaceId,
+        'target_progress_updated',
+        `${userProfile.name} added milestone "${newTitle.trim()}" to target "${target.name}"`,
+        { uid: userProfile.uid, name: userProfile.name },
+        null,
+        { targetId: target.id, notificationType: 'target_progress' }
+      );
+
       setNewTitle('');
       setNewWeight(1);
       setNewPriority('medium');
@@ -99,6 +120,17 @@ export default function ManageProgressModal({ isOpen, onClose, target, workspace
         milestones: updatedMilestones,
         updatedAt: serverTimestamp()
       });
+
+      const updatedMilestone = realMilestones.find(m => m.id === milestoneId);
+      const milestoneStatus = updatedMilestone?.status === 'completed' ? 'pending' : 'completed';
+      await dispatchNotification(
+        workspaceId,
+        'target_progress_updated',
+        `${userProfile.name} marked milestone "${updatedMilestone?.title}" on target "${target.name}" as ${milestoneStatus}`,
+        { uid: userProfile.uid, name: userProfile.name },
+        null,
+        { targetId: target.id, notificationType: 'target_progress' }
+      );
     } catch (err: any) {
       console.error('Error toggling milestone status:', err);
       setError('Failed to update milestone status.');

@@ -12,6 +12,7 @@ import {
   Plus, 
   Trash2, 
   Archive, 
+  ArchiveRestore,
   Check, 
   Settings, 
   Briefcase, 
@@ -199,6 +200,26 @@ export default function AdminPanel({
       onRefreshWorkspaceData();
     } catch (err) {
       console.error('Error archiving channel:', err);
+    }
+  };
+
+  // Manage channel unarchive
+  const handleUnarchiveChannel = async (ch: Channel) => {
+    try {
+      const chRef = doc(db, 'workspaces', userProfile.workspaceId, 'channels', ch.id);
+      await updateDoc(chRef, { isArchived: false });
+
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'channel_unarchived',
+        `Admin unarchived channel #${ch.name}`
+      );
+
+      onRefreshWorkspaceData();
+    } catch (err) {
+      console.error('Error unarchiving channel:', err);
     }
   };
 
@@ -484,6 +505,17 @@ export default function AdminPanel({
                           className="p-1 text-slate-400 hover:text-rose-500 rounded transition hover:bg-rose-50 cursor-pointer"
                         >
                           <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Unarchive button */}
+                      {ch.isArchived && (
+                        <button
+                          onClick={() => handleUnarchiveChannel(ch)}
+                          title="Unarchive/Restore Channel"
+                          className="p-1 text-slate-400 hover:text-emerald-500 rounded transition hover:bg-emerald-50 cursor-pointer"
+                        >
+                          <ArchiveRestore className="w-3.5 h-3.5" />
                         </button>
                       )}
 

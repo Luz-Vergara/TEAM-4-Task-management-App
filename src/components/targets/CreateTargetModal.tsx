@@ -8,6 +8,7 @@ import { Target, TargetScope, Channel, UserProfile } from '../../types';
 import { X } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { dispatchNotification } from '../../utils/notifications';
 
 interface CreateTargetModalProps {
   isOpen: boolean;
@@ -176,7 +177,19 @@ export default function CreateTargetModal({ isOpen, onClose, workspaceId, channe
         selectedYear,
       };
 
-      await addDoc(collection(db, 'workspaces', workspaceId, 'targets'), targetData);
+      const docRef = await addDoc(collection(db, 'workspaces', workspaceId, 'targets'), targetData);
+
+      if (responsibilityType === 'specific_member' && responsibleMemberId) {
+        const creatorName = members.find(m => m.uid === createdBy)?.name || 'Team Leader';
+        await dispatchNotification(
+          workspaceId,
+          'target_assigned',
+          `${creatorName} assigned the target "${name.trim()}" to you.`,
+          { uid: createdBy, name: creatorName },
+          null,
+          { targetId: docRef.id, notificationType: 'target_assigned' }
+        );
+      }
       
       // Reset form
       setName('');

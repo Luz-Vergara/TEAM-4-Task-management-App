@@ -10,9 +10,10 @@ interface TargetTableProps {
   members: UserProfile[];
   workspaceId: string;
   tasks?: Task[];
+  userProfile: UserProfile;
 }
 
-export default function TargetTable({ targets, members, workspaceId, tasks = [] }: TargetTableProps) {
+export default function TargetTable({ targets, members, workspaceId, tasks = [], userProfile }: TargetTableProps) {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null);
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -128,9 +129,10 @@ export default function TargetTable({ targets, members, workspaceId, tasks = [] 
   };
 
   const handleToggleTaskStatus = async (task: Task) => {
+    if (task.status === 'completed') return;
     try {
       const taskRef = doc(db, 'workspaces', workspaceId, 'tasks', task.id);
-      const newStatus = task.status === 'completed' ? 'todo' : 'completed';
+      const newStatus = 'completed';
       await updateDoc(taskRef, {
         status: newStatus,
         updatedAt: new Date().toISOString()
@@ -318,8 +320,9 @@ export default function TargetTable({ targets, members, workspaceId, tasks = [] 
                                   <input
                                     type="checkbox"
                                     checked={task.status === 'completed'}
+                                    disabled={task.status === 'completed'}
                                     onChange={() => handleToggleTaskStatus(task)}
-                                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                   />
                                   <div className="min-w-0 flex-1 space-y-1 text-left">
                                     <div className={`text-xs font-semibold truncate ${task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
@@ -355,6 +358,7 @@ export default function TargetTable({ targets, members, workspaceId, tasks = [] 
           }}
           target={targets.find(t => t.id === selectedTarget.id) || selectedTarget}
           workspaceId={workspaceId}
+          userProfile={userProfile}
         />
       )}
     </div>
