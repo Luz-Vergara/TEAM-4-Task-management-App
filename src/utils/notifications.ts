@@ -21,7 +21,7 @@ export async function requestNotificationPermission(userId: string) {
   try {
     const permission = await window.Notification.requestPermission();
     if (permission === 'granted') {
-      const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY_HERE' }); // Note: Replace with actual key or fetch from server if needed
+      const token = await getToken(messaging, { vapidKey: 'BOh0ISVFsyDw2qZkuilNlC9hhLnSIdQZZd4wIOvPoT6K9QUEOfqr_OikqfKr46JjM3Zypxe-JaxmVx0-dhjS0Jw' });
       console.log('Notification permission granted. Token:', token);
       
       // Save token to Firestore
