@@ -8,10 +8,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((reg) => {
-        console.log('VibeCheck ServiceWorker registered successfully with scope:', reg.scope);
+        console.log('TEAM 4 Workflow Hub ServiceWorker registered successfully with scope:', reg.scope);
       })
       .catch((err) => {
-        console.error('VibeCheck ServiceWorker registration failed:', err);
+        console.error('TEAM 4 Workflow Hub ServiceWorker registration failed:', err);
       });
   });
 }

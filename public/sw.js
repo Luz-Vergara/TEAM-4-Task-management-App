@@ -1,5 +1,5 @@
-// Service worker for VibeCheck PWA
-const CACHE_NAME = 'vibecheck-cache-v1';
+// Service worker for TEAM 4 Workflow Hub PWA
+const CACHE_NAME = 'team4-cache-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -45,12 +45,12 @@ self.addEventListener('fetch', (event) => {
 
 // Event listener for push notifications
 self.addEventListener('push', (event) => {
-  let data = { title: 'VibeCheck Alert', body: 'New workspace activity detected.' };
+  let data = { title: 'TEAM 4 Workflow Hub Alert', body: 'New workspace activity detected.' };
   if (event.data) {
     try {
       data = event.data.json();
     } catch (e) {
-      data = { title: 'VibeCheck Alert', body: event.data.text() };
+      data = { title: 'TEAM 4 Workflow Hub Alert', body: event.data.text() };
     }
   }
 

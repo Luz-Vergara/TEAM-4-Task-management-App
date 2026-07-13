@@ -68,7 +68,7 @@ async function startServer() {
       });
 
       const mailOptions = {
-        from: `"VibeCheck Workflow Hub" <${SMTP_FROM || SMTP_USER}>`,
+        from: `"TEAM 4 Workflow Hub" <${SMTP_FROM || SMTP_USER}>`,
         to: to,
         subject,
         html,

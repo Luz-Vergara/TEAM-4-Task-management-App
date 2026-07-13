@@ -189,7 +189,7 @@ export function useWorkspaceSubscriptions({ userProfile }: UseWorkspaceSubscript
             // 2. Trigger native browser push notification
             if (settings.pwaEnabled && 'Notification' in window && Notification.permission === 'granted') {
               try {
-                new Notification(`VibeCheck: ${data.senderName}`, {
+                new Notification(`TEAM 4 Hub: ${data.senderName}`, {
                   body: data.details,
                   icon: '/favicon.ico'
                 });

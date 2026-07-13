@@ -36,7 +36,7 @@ export default function PWAInstallPrompt() {
       setIsInstalled(true);
       setIsVisible(false);
       setDeferredPrompt(null);
-      console.log('VibeCheck was successfully installed!');
+      console.log('TEAM 4 Workflow Hub was successfully installed!');
     };
 
     window.addEventListener('appinstalled', handleAppInstalled);
@@ -101,14 +101,14 @@ export default function PWAInstallPrompt() {
                 <Sparkles className="w-4 h-4 animate-spin-slow" />
               </span>
               <h3 className="font-bold text-sm tracking-tight text-slate-100">
-                Install VibeCheck Hub
+                Install TEAM 4 Hub
               </h3>
             </div>
 
             {!showHowTo ? (
               <>
                 <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                  Run VibeCheck as a native desktop or mobile app! Enjoy a standalone workspace, launch from your dock/home screen, and leverage offline speed.
+                  Run TEAM 4 Workflow Hub as a native desktop or mobile app! Enjoy a standalone workspace, launch from your dock/home screen, and leverage offline speed.
                 </p>
 
                 <div className="flex flex-col gap-2">
@@ -159,7 +159,7 @@ export default function PWAInstallPrompt() {
                     <Monitor className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-semibold text-slate-200 block">Desktop (Chrome, Edge, Opera)</span>
-                      Look at the right side of the address bar at the top of your screen. Click the <span className="text-teal-400 font-medium">"Install"</span> icon or select <span className="text-teal-400 font-medium">"Install VibeCheck Workflow Hub"</span> from the browser's three-dot menu.
+                      Look at the right side of the address bar at the top of your screen. Click the <span className="text-teal-400 font-medium">"Install"</span> icon or select <span className="text-teal-400 font-medium">"Install TEAM 4 Workflow Hub"</span> from the browser's three-dot menu.
                     </div>
                   </div>
 
