@@ -276,7 +276,7 @@ export default function ChannelView({
                     {statusTasks.map((task) => {
                       const todayStr = new Date().toISOString().split('T')[0];
                       const isOverdue = task.status !== TaskStatus.COMPLETED && task.dueDate && task.dueDate < todayStr;
-                      const hasUserPermissionToTransition = canModifyTasks || task.assignedUserId === userProfile.uid;
+                      const hasUserPermissionToTransition = canModifyTasks || task.assignedUserId === userProfile.uid || task.assignedUserIds?.includes(userProfile.uid);
                       const isExpanded = expandedTaskId === task.id;
 
                       return (
@@ -325,13 +325,27 @@ export default function ChannelView({
                                   )}
                                 </div>
 
-                                {/* Assignee Circle */}
-                                <div 
-                                  title={`Assigned to ${getMemberName(task.assignedUserId)}`}
-                                  className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-600 flex items-center justify-center shrink-0"
-                                >
-                                  {getMemberInitials(task.assignedUserId)}
-                                </div>
+                                {/* Assignee Circle(s) */}
+                                {task.assignedUserIds && task.assignedUserIds.length > 0 ? (
+                                  <div className="flex -space-x-1.5 overflow-hidden">
+                                    {task.assignedUserIds.map((uid) => (
+                                      <div 
+                                        key={uid}
+                                        title={`Assigned to ${getMemberName(uid)}`}
+                                        className="w-5 h-5 rounded-full bg-slate-100 border border-white text-[8px] font-bold text-slate-600 flex items-center justify-center shrink-0 ring-1 ring-slate-200/50"
+                                      >
+                                        {getMemberInitials(uid)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div 
+                                    title={`Assigned to ${getMemberName(task.assignedUserId)}`}
+                                    className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-600 flex items-center justify-center shrink-0"
+                                  >
+                                    {getMemberInitials(task.assignedUserId)}
+                                  </div>
+                                )}
                               </div>
 
                               {/* Quick Change Status Dropdown for board navigation */}

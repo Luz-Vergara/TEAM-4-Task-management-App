@@ -23,6 +23,8 @@ interface TaskDetailsFormProps {
   setDescription: (val: string) => void;
   assignedUserId: string;
   setAssignedUserId: (val: string) => void;
+  assignedUserIds: string[];
+  setAssignedUserIds: (val: string[]) => void;
   priority: TaskPriority;
   setPriority: (val: TaskPriority) => void;
   status: TaskStatus;
@@ -58,6 +60,8 @@ export default function TaskDetailsForm({
   setDescription,
   assignedUserId,
   setAssignedUserId,
+  assignedUserIds = [],
+  setAssignedUserIds,
   priority,
   setPriority,
   status,
@@ -85,6 +89,8 @@ export default function TaskDetailsForm({
   targetId,
   setTargetId
 }: TaskDetailsFormProps) {
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = React.useState(false);
+
   return (
     <form onSubmit={handleSaveSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
       <div>
@@ -128,22 +134,103 @@ export default function TaskDetailsForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Assign User</label>
+          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Assign Users</label>
           <div className="relative">
-            <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <select
-              value={assignedUserId}
-              onChange={(e) => setAssignedUserId(e.target.value)}
-              className="pl-9 w-full bg-slate-100 border-none rounded-lg py-2 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none"
-            >
-              <option value="">Unassigned</option>
-              {members.map((u) => (
-                <option key={u.uid} value={u.uid}>
-                  {u.name} ({u.role})
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+              <button
+                type="button"
+                onClick={() => setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
+                className="pl-9 pr-8 w-full bg-slate-100 border-none rounded-lg py-2 text-sm text-left text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 flex justify-between items-center cursor-pointer min-h-[38px]"
+              >
+                <span className="truncate">
+                  {assignedUserIds.length === 0 
+                    ? "Select Assignees" 
+                    : `${assignedUserIds.length} user${assignedUserIds.length > 1 ? 's' : ''} selected`}
+                </span>
+                <span className="text-slate-400 text-xs">▼</span>
+              </button>
+            </div>
+
+            {isAssigneeDropdownOpen && (
+              <>
+                {/* Backdrop to close the dropdown when clicked outside */}
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setIsAssigneeDropdownOpen(false)} 
+                />
+                <div className="absolute left-0 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-20 p-1.5 space-y-1">
+                  {members.map((u) => {
+                    const isSelected = assignedUserIds.includes(u.uid);
+                    return (
+                      <div
+                        key={u.uid}
+                        onClick={() => {
+                          let newIds = [...assignedUserIds];
+                          if (isSelected) {
+                            newIds = newIds.filter(id => id !== u.uid);
+                          } else {
+                            newIds.push(u.uid);
+                          }
+                          setAssignedUserIds(newIds);
+                          // Backward compatibility
+                          setAssignedUserId(newIds[0] || '');
+                        }}
+                        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors ${
+                          isSelected ? 'bg-teal-50 text-teal-800 font-semibold' : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 pointer-events-none"
+                        />
+                        <div className="flex-1 flex flex-col items-start">
+                          <span className="font-medium text-slate-800">{u.name}</span>
+                          <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {members.length === 0 && (
+                    <div className="text-center py-2 text-xs text-slate-400">
+                      No members in workspace
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Selected Badges display beneath the selector */}
+          {assignedUserIds.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {assignedUserIds.map((uid) => {
+                const member = members.find(m => m.uid === uid);
+                if (!member) return null;
+                return (
+                  <span
+                    key={uid}
+                    className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full transition-colors font-medium border border-slate-200/50"
+                  >
+                    <span>{member.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newIds = assignedUserIds.filter(id => id !== uid);
+                        setAssignedUserIds(newIds);
+                        setAssignedUserId(newIds[0] || '');
+                      }}
+                      className="text-slate-400 hover:text-slate-600 font-bold ml-0.5 text-[10px] p-0.5 hover:bg-slate-300/40 rounded-full flex items-center justify-center w-3.5 h-3.5"
+                    >
+                      &times;
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div>

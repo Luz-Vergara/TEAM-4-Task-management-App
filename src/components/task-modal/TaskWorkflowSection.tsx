@@ -11,6 +11,7 @@ interface TaskWorkflowSectionProps {
   status: TaskStatus;
   setStatus: React.Dispatch<React.SetStateAction<TaskStatus>>;
   assignedUserId: string;
+  assignedUserIds?: string[];
   userProfile: UserProfile;
   isTransitioning: boolean;
   workflowRemarks: string;
@@ -24,6 +25,7 @@ export default function TaskWorkflowSection({
   status,
   setStatus,
   assignedUserId,
+  assignedUserIds = [],
   userProfile,
   isTransitioning,
   workflowRemarks,
@@ -32,7 +34,7 @@ export default function TaskWorkflowSection({
   getMemberName,
   onSaveTask
 }: TaskWorkflowSectionProps) {
-  const isAssignee = assignedUserId === userProfile.uid;
+  const isAssignee = assignedUserId === userProfile.uid || assignedUserIds.includes(userProfile.uid);
 
   return (
     <div className="space-y-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
@@ -100,7 +102,9 @@ export default function TaskWorkflowSection({
               </div>
             ) : (
               <div className="text-xs text-slate-450 text-center py-2 italic">
-                {assignedUserId ? (
+                {assignedUserIds && assignedUserIds.length > 0 ? (
+                  <span>Waiting for assigned members <strong>{assignedUserIds.map(uid => getMemberName(uid)).join(', ')}</strong> to accept this task.</span>
+                ) : assignedUserId ? (
                   <span>Waiting for assigned member <strong>{getMemberName(assignedUserId)}</strong> to accept this task.</span>
                 ) : (
                   <span>No member assigned yet. A Team Leader can edit task parameters to assign a member.</span>
@@ -138,7 +142,11 @@ export default function TaskWorkflowSection({
               </div>
             ) : (
               <div className="text-xs text-slate-450 text-center py-2 italic">
-                <span>This task is currently In Progress by <strong>{getMemberName(assignedUserId)}</strong>.</span>
+                {assignedUserIds && assignedUserIds.length > 0 ? (
+                  <span>This task is currently In Progress by <strong>{assignedUserIds.map(uid => getMemberName(uid)).join(', ')}</strong>.</span>
+                ) : (
+                  <span>This task is currently In Progress by <strong>{getMemberName(assignedUserId)}</strong>.</span>
+                )}
               </div>
             )}
           </>

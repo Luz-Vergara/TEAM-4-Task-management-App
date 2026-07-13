@@ -150,7 +150,7 @@ export default function AdminPanel({
       const newCh = {
         id: channelId,
         workspaceId: userProfile.workspaceId,
-        name: newChannelName.trim().toLowerCase(),
+        name: newChannelName.trim(),
         description: newChannelDesc.trim() || 'No description provided',
         isArchived: false,
         assignedLeaderId: selectedLeaderId,

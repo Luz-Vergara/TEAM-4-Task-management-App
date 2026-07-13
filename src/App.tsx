@@ -363,7 +363,7 @@ export default function App() {
       const data = {
         id: channelId,
         workspaceId: wId,
-        name: newChName.trim().toLowerCase(),
+        name: newChName.trim(),
         description: newChDesc.trim() || 'No description',
         isArchived: false,
         assignedLeaderId: '',

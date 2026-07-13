@@ -134,6 +134,7 @@ export interface Task {
   title: string;
   description: string;
   assignedUserId: string;
+  assignedUserIds?: string[];
   creatorId: string;
   priority: TaskPriority;
   status: TaskStatus;

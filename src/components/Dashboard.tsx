@@ -58,7 +58,7 @@ export default function Dashboard({
   });
   const overdueCount = overdueTasks.length;
 
-  const myTasksCount = tasks.filter((t) => t.assignedUserId === userProfile.uid).length;
+  const myTasksCount = tasks.filter((t) => t.assignedUserId === userProfile.uid || t.assignedUserIds?.includes(userProfile.uid)).length;
 
   // Task lists breakdown
   const todoCount = tasks.filter((t) => t.status === TaskStatus.TODO).length;
@@ -80,9 +80,9 @@ export default function Dashboard({
     
     let matchesAssignee = true;
     if (assigneeFilter === 'me') {
-      matchesAssignee = task.assignedUserId === userProfile.uid;
+      matchesAssignee = task.assignedUserId === userProfile.uid || task.assignedUserIds?.includes(userProfile.uid);
     } else if (assigneeFilter !== 'all') {
-      matchesAssignee = task.assignedUserId === assigneeFilter;
+      matchesAssignee = task.assignedUserId === assigneeFilter || task.assignedUserIds?.includes(assigneeFilter);
     }
 
     const matchesChannel = channelFilter === 'all' || task.channelId === channelFilter;
@@ -501,7 +501,17 @@ export default function Dashboard({
                         </span>
                       </td>
                       <td className="p-4 text-slate-600">
-                        {getMemberName(task.assignedUserId)}
+                        {task.assignedUserIds && task.assignedUserIds.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {task.assignedUserIds.map((uid) => (
+                              <span key={uid} className="bg-slate-50 border border-slate-100 text-slate-700 text-[11px] px-1.5 py-0.5 rounded-full inline-block max-w-[100px] truncate" title={getMemberName(uid)}>
+                                {getMemberName(uid)}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          getMemberName(task.assignedUserId)
+                        )}
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${getPriorityBadgeColor(task.priority)}`}>

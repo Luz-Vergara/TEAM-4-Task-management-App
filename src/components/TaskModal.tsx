@@ -54,6 +54,7 @@ export default function TaskModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedUserId, setAssignedUserId] = useState('');
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [status, setStatus] = useState<TaskStatus>(initialStatus);
   const [dueDate, setDueDate] = useState('');
@@ -298,6 +299,7 @@ export default function TaskModal({
       setTitle(task.title);
       setDescription(task.description);
       setAssignedUserId(task.assignedUserId);
+      setAssignedUserIds(task.assignedUserIds || (task.assignedUserId ? [task.assignedUserId] : []));
       setPriority(task.priority);
       setStatus(task.status);
       setDueDate(task.dueDate || '');
@@ -308,6 +310,7 @@ export default function TaskModal({
       setTitle('');
       setDescription('');
       setAssignedUserId(members[0]?.uid || '');
+      setAssignedUserIds(members[0]?.uid ? [members[0].uid] : []);
       setPriority(TaskPriority.MEDIUM);
       setStatus(initialStatus);
       setDueDate(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]); // Default 3 days from now
@@ -411,6 +414,7 @@ export default function TaskModal({
       title: title.trim(),
       description: description.trim(),
       assignedUserId,
+      assignedUserIds,
       priority,
       status,
       dueDate,
@@ -538,6 +542,8 @@ export default function TaskModal({
             setDescription={setDescription}
             assignedUserId={assignedUserId}
             setAssignedUserId={setAssignedUserId}
+            assignedUserIds={assignedUserIds}
+            setAssignedUserIds={setAssignedUserIds}
             priority={priority}
             setPriority={setPriority}
             status={status}
@@ -693,8 +699,18 @@ export default function TaskModal({
                     <UserCheck className="w-3 h-3 text-teal-500" />
                     <span>Assigned To</span>
                   </div>
-                  <div className="text-xs text-slate-800 font-bold truncate">
-                    {getMemberName(assignedUserId)}
+                  <div className="text-xs text-slate-800 font-bold space-y-1">
+                    {assignedUserIds && assignedUserIds.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {assignedUserIds.map((uid) => (
+                          <span key={uid} className="bg-slate-200/55 text-slate-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-block max-w-[120px] truncate">
+                            {getMemberName(uid)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      getMemberName(assignedUserId)
+                    )}
                   </div>
                 </div>
 
@@ -753,6 +769,7 @@ export default function TaskModal({
                 status={status}
                 setStatus={setStatus}
                 assignedUserId={assignedUserId}
+                assignedUserIds={assignedUserIds}
                 userProfile={userProfile}
                 isTransitioning={isTransitioning}
                 workflowRemarks={workflowRemarks}
