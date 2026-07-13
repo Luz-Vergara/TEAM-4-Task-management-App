@@ -47,6 +47,7 @@ export default function AdminPanel({
   const [targetRole, setTargetRole] = useState<UserRole>(UserRole.MEMBER);
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
   const [deletingChannelInProgress, setDeletingChannelInProgress] = useState(false);
+  const [confirmingKickUserId, setConfirmingKickUserId] = useState<string | null>(null);
 
   // Edit Channel states
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
@@ -132,6 +133,27 @@ export default function AdminPanel({
       onRefreshWorkspaceData();
     } catch (err) {
       console.error('Error updating user role:', err);
+    }
+  };
+
+  // Manage kicking/removing user from workspace
+  const handleKickMember = async (userId: string, targetUserProfile: UserProfile) => {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await deleteDoc(userRef);
+      
+      await logActivity(
+        userProfile.workspaceId,
+        userProfile.uid,
+        userProfile.name,
+        'user_kicked',
+        `Admin kicked/removed ${targetUserProfile.name} from the workspace`
+      );
+
+      setConfirmingKickUserId(null);
+      onRefreshWorkspaceData();
+    } catch (err) {
+      console.error('Error kicking user:', err);
     }
   };
 
@@ -390,15 +412,43 @@ export default function AdminPanel({
                   ) : (
                     /* Cannot edit oneself to prevent accidents */
                     member.uid !== userProfile.uid && (
-                      <button
-                        onClick={() => {
-                          setEditingUserId(member.uid);
-                          setTargetRole(member.role);
-                        }}
-                        className="px-2.5 py-1 text-[10px] font-bold uppercase border border-slate-200 hover:border-slate-300 bg-slate-50 text-slate-500 hover:text-teal-600 rounded transition"
-                      >
-                        Adjust Role
-                      </button>
+                      confirmingKickUserId === member.uid ? (
+                        <div className="flex items-center space-x-1.5 bg-rose-50 border border-rose-100 p-1 rounded-lg">
+                          <span className="text-[9px] text-rose-600 font-bold uppercase px-1.5">Remove?</span>
+                          <button
+                            onClick={() => handleKickMember(member.uid, member)}
+                            className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[9px] uppercase rounded transition cursor-pointer"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmingKickUserId(null)}
+                            className="px-2 py-0.5 bg-white hover:bg-slate-100 text-slate-500 border border-slate-200 font-semibold text-[9px] uppercase rounded transition cursor-pointer"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => {
+                              setEditingUserId(member.uid);
+                              setTargetRole(member.role);
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase border border-slate-200 hover:border-slate-300 bg-slate-50 text-slate-500 hover:text-teal-600 rounded transition cursor-pointer"
+                          >
+                            Adjust Role
+                          </button>
+                          <button
+                            onClick={() => setConfirmingKickUserId(member.uid)}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase border border-rose-200 hover:border-rose-300 bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1"
+                            title="Remove member from workspace"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Kick</span>
+                          </button>
+                        </div>
+                      )
                     )
                   )}
                 </div>
