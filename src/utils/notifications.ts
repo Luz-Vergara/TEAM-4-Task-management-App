@@ -208,6 +208,26 @@ export async function dispatchNotification(
 
     const notificationsRef = collection(db, 'workspaces', workspaceId, 'notifications');
 
+    // Fetch participants of the task discussion once if action is 'comment_added' and task is present
+    const participantUidsSet = new Set<string>();
+    if (action === 'comment_added' && task?.id) {
+      try {
+        const commentsQuery = query(
+          collection(db, 'workspaces', workspaceId, 'comments'),
+          where('taskId', '==', task.id)
+        );
+        const commentsSnapshot = await getDocs(commentsQuery);
+        commentsSnapshot.forEach((d) => {
+          const cData = d.data();
+          if (cData.userId) {
+            participantUidsSet.add(cData.userId);
+          }
+        });
+      } catch (err) {
+        console.error('Error fetching participants for comment notification:', err);
+      }
+    }
+
     // Resolve the triggering user's email address if not provided in the payload
     const triggerEmail = triggerUser.email || members.find(m => m.uid === triggerUser.uid)?.email;
 
@@ -254,7 +274,14 @@ export async function dispatchNotification(
         const commentText = details.split('commented: ')[1] || details;
         const isMentioned = commentText.toLowerCase().includes('@' + member.name.toLowerCase().replace(/\s+/g, '')) || 
                             commentText.toLowerCase().includes(member.name.toLowerCase());
-        const isRelated = task && (task.assignedUserId === member.uid || task.creatorId === member.uid);
+        
+        const isAssigned = task && (
+          task.assignedUserId === member.uid || 
+          (task.assignedUserIds && task.assignedUserIds.includes(member.uid))
+        );
+        const isCreator = task && task.creatorId === member.uid;
+        const isParticipant = participantUidsSet.has(member.uid);
+        const isRelated = isAssigned || isCreator || isParticipant;
 
         if (isMentioned) {
           notificationType = 'mention_comment';
@@ -262,10 +289,10 @@ export async function dispatchNotification(
           isEnabledForAction = settings.onCommentAdded;
         } else if (isRelated) {
           notificationType = 'comment_added';
-          message = `${triggerUser.name} commented on your task "${task?.title}": "${commentText}"`;
+          message = `${triggerUser.name} commented on task "${task?.title}": "${commentText}"`;
           isEnabledForAction = settings.onCommentAdded;
         } else {
-          return; // only notify if mentioned or it is user's task
+          return; // only notify if mentioned or related (assigned/creator/participant)
         }
       } else if (action === 'target_assigned') {
         if (extra?.targetId) {

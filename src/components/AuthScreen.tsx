@@ -40,6 +40,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const [showEnableEmailAuthGuide, setShowEnableEmailAuthGuide] = useState(false);
+  const [showGoogleIframeGuide, setShowGoogleIframeGuide] = useState(false);
 
   // Helper: Create profile in Firestore and trigger callback
   const createProfileAndAuthenticate = async (
@@ -274,6 +275,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const handleGoogleLogin = async () => {
     setError('');
     setShowEnableEmailAuthGuide(false);
+    setShowGoogleIframeGuide(false);
     setLoading(true);
 
     try {
@@ -308,6 +310,16 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       }
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
+      const isInternalError = 
+        err.code === 'auth/internal-error' || 
+        (err.message && err.message.includes('auth/internal-error')) ||
+        err.code === 'auth/web-storage-unsupported' ||
+        (err.message && err.message.includes('web-storage-unsupported')) ||
+        (err.message && err.message.includes('popup'));
+      
+      if (isInternalError) {
+        setShowGoogleIframeGuide(true);
+      }
       setError(err.message || 'An error occurred during Google Sign-In');
     } finally {
       setLoading(false);

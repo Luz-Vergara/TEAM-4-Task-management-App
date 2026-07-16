@@ -285,7 +285,7 @@ export default function AdminPanel({
 
   // Save edited channel details
   const handleSaveChannelEdit = async (channelId: string) => {
-    const trimmedName = editingChannelName.trim().toLowerCase().replace(/[^a-z0-9\-]+/g, '');
+    const trimmedName = editingChannelName.trim();
     if (!trimmedName) {
       alert('Channel name cannot be empty');
       return;

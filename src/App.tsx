@@ -43,6 +43,7 @@ import NotificationModal from './components/NotificationModal';
 import EmailSandbox from './components/EmailSandbox';
 import TargetsPerformance from './components/TargetsPerformance';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import TaskOverview from './components/TaskOverview';
 
 import { dispatchNotification } from './utils/notifications';
 
@@ -68,7 +69,7 @@ export default function App() {
   } = useWorkspaceSubscriptions({ userProfile });
 
   // Navigation state
-  const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets' | 'all-tasks'>('dashboard');
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   
   // Modals state
@@ -144,7 +145,7 @@ export default function App() {
     setActiveView('channel');
   };
 
-  const handleSelectView = (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets') => {
+  const handleSelectView = (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets' | 'all-tasks') => {
     setActiveView(view);
   };
 
@@ -190,6 +191,7 @@ export default function App() {
           targetId: taskData.targetId !== undefined ? taskData.targetId : null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          completedAt: (taskData.status === TaskStatus.COMPLETED) ? new Date().toISOString() : undefined,
           attachments: taskData.attachments || []
         };
 
@@ -223,10 +225,14 @@ export default function App() {
         }
 
         // Update task parameters
-        const updatePayload = {
+        const updatePayload: any = {
           ...taskData,
           updatedAt: new Date().toISOString()
         };
+
+        if (taskData.status === TaskStatus.COMPLETED && activeTaskForModal.status !== TaskStatus.COMPLETED) {
+          updatePayload.completedAt = new Date().toISOString();
+        }
 
         await updateDoc(taskDocRef, updatePayload);
 
@@ -561,6 +567,16 @@ export default function App() {
             channels={channels}
             members={members}
             tasks={tasks}
+          />
+        )}
+
+        {activeView === 'all-tasks' && (
+          <TaskOverview
+            userProfile={userProfile}
+            tasks={tasks}
+            members={members}
+            channels={channels}
+            onSelectTask={handleSelectTaskDetails}
           />
         )}
 

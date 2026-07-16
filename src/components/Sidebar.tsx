@@ -29,7 +29,8 @@ import {
   ExternalLink,
   AlertTriangle,
   Mail,
-  TrendingUp
+  TrendingUp,
+  FolderKanban
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -41,13 +42,13 @@ interface SidebarProps {
   workspaceJoinCode?: string;
   channels: Channel[];
   selectedChannelId: string | null;
-  activeView: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets';
+  activeView: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets' | 'all-tasks';
   members: UserProfile[];
   unreadNotifsCount?: number;
   storageBytes?: number;
   allAttachments?: any[];
   onSelectChannel: (channelId: string) => void;
-  onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets') => void;
+  onSelectView: (view: 'dashboard' | 'channel' | 'admin' | 'dispatches' | 'targets' | 'all-tasks') => void;
   onAddChannel: () => void;
   onAddSubChannel: (parentId: string) => void;
   onLogout: () => void;
@@ -215,6 +216,25 @@ export default function Sidebar({
           <div className="flex items-center space-x-2.5">
             <LayoutDashboard className="w-4 h-4" />
             <span>Workspace Dashboard</span>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+        </button>
+
+        {/* Task Overview / All Tasks Link */}
+        <button
+          onClick={() => {
+            onSelectView('all-tasks');
+            setIsOpen(false);
+          }}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-base font-medium transition duration-150 ${
+            activeView === 'all-tasks'
+              ? 'bg-slate-800 text-white border-l-2 border-teal-500'
+              : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5">
+            <FolderKanban className="w-4 h-4 text-teal-400" />
+            <span>All Tasks Overview</span>
           </div>
           <ChevronRight className="w-3.5 h-3.5 opacity-60" />
         </button>

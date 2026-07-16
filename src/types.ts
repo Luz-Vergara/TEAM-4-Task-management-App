@@ -141,6 +141,7 @@ export interface Task {
   dueDate: string; // YYYY-MM-DD
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
   targetId?: string | null;
   attachments?: Attachment[];
   statusHistory?: StatusHistoryEntry[];

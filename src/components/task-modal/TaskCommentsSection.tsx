@@ -105,38 +105,50 @@ export default function TaskCommentsSection({
             );
           }
 
+          const isMe = c.userId === userProfile.uid;
+
           return (
-            <div key={c.id} className="text-xs space-y-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-teal-200 transition text-left">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  <strong className="text-slate-800 font-bold truncate">{c.userName}</strong>
-                  <span className={`text-[8px] font-bold uppercase px-1 rounded border shrink-0 ${getRoleBadge(c.userRole)}`}>
-                    {c.userRole}
+            <div key={c.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full animate-in fade-in-50 duration-200`}>
+              <div className={`text-xs space-y-1 p-3 rounded-2xl border shadow-sm transition text-left max-w-[85%] ${
+                isMe 
+                  ? 'bg-blue-50 border-blue-200 hover:border-blue-300' 
+                  : 'bg-white border-slate-200 hover:border-teal-200'
+              }`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    <strong className={`font-bold truncate ${isMe ? 'text-blue-950' : 'text-slate-800'}`}>{c.userName}</strong>
+                    <span className={`text-[8px] font-bold uppercase px-1 rounded border shrink-0 ${getRoleBadge(c.userRole)}`}>
+                      {c.userRole}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-mono shrink-0 ${isMe ? 'text-blue-600/80' : 'text-slate-450'}`}>
+                    {formatRelativeTime(c.createdAt)}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-450 font-mono shrink-0">
-                  {formatRelativeTime(c.createdAt)}
-                </span>
-              </div>
-              <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                <p className={`leading-relaxed whitespace-pre-wrap ${isMe ? 'text-blue-900/95' : 'text-slate-600'}`}>{c.content}</p>
 
-              {c.attachments && c.attachments.length > 0 && (
-                <div className="mt-2 pt-1.5 border-t border-slate-100 flex flex-wrap gap-1.5">
-                  {c.attachments.map((att) => (
-                    <a
-                      key={att.id}
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded hover:bg-slate-100 hover:border-teal-400 transition text-[10px] text-slate-700 max-w-full"
-                    >
-                      {getAttachmentIcon(att.type, att.name)}
-                      <span className="truncate max-w-[120px]" title={att.name}>{att.name}</span>
-                      {att.size && <span className="text-[8px] text-slate-455 font-mono">({att.size})</span>}
-                    </a>
-                  ))}
-                </div>
-              )}
+                {c.attachments && c.attachments.length > 0 && (
+                  <div className={`mt-2 pt-1.5 border-t flex flex-wrap gap-1.5 ${isMe ? 'border-blue-100' : 'border-slate-100'}`}>
+                    {c.attachments.map((att) => (
+                      <a
+                        key={att.id}
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 border rounded transition text-[10px] max-w-full ${
+                          isMe
+                            ? 'bg-blue-100/40 border-blue-200/80 hover:bg-blue-100/70 hover:border-blue-400 text-blue-950'
+                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-teal-400 text-slate-700'
+                        }`}
+                      >
+                        {getAttachmentIcon(att.type, att.name)}
+                        <span className="truncate max-w-[120px]" title={att.name}>{att.name}</span>
+                        {att.size && <span className={`text-[8px] font-mono ${isMe ? 'text-blue-700' : 'text-slate-455'}`}>{att.size}</span>}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -246,13 +258,21 @@ export default function TaskCommentsSection({
           </button>
         </div>
 
-        <input
-          type="text"
+        <textarea
           placeholder="Type feedback, blocker, or message..."
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (newComment.trim() || commentAttachments.length > 0) {
+                handlePostComment(e);
+              }
+            }
+          }}
           disabled={sendingComment}
-          className="flex-1 bg-slate-100 text-xs border-none rounded-lg py-2 px-3 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          rows={1}
+          className="flex-1 bg-slate-100 text-xs border-none rounded-lg py-2 px-3 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none min-h-[36px] max-h-32 scrollbar-thin"
         />
 
         <button

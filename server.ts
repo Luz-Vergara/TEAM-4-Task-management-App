@@ -67,8 +67,13 @@ async function startServer() {
         },
       });
 
+      // Robustly extract the pure email address in case SMTP_FROM contains a display name
+      const baseFrom = SMTP_FROM || SMTP_USER || "";
+      const emailMatch = baseFrom.match(/<([^>]+)>/);
+      const cleanEmail = emailMatch ? emailMatch[1].trim() : baseFrom.trim();
+
       const mailOptions = {
-        from: `"TEAM 4 Workflow Hub" <${SMTP_FROM || SMTP_USER}>`,
+        from: `"TEAM 4 Workflow Hub" <${cleanEmail}>`,
         to: to,
         subject,
         html,

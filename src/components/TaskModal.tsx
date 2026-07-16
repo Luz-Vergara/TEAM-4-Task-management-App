@@ -15,7 +15,8 @@ import {
   Bookmark,
   Paperclip,
   UploadCloud,
-  Link2
+  Link2,
+  CheckCircle2
 } from 'lucide-react';
 import { formatDate, formatRelativeTime, logActivity } from '../utils';
 import { dispatchNotification } from '../utils/notifications';
@@ -580,10 +581,18 @@ export default function TaskModal({
                   {priority} Priority
                 </span>
                 <h2 className="text-lg font-extrabold text-slate-900 tracking-tight leading-snug">{title}</h2>
-                <div className="flex items-center space-x-2 text-xs text-slate-400">
-                  <span>Created by {getMemberName(task?.creatorId || '')}</span>
-                  <span>&bull;</span>
-                  <span>{formatRelativeTime(task?.createdAt || '')}</span>
+                <div className="flex flex-col space-y-1 text-xs text-slate-400">
+                  <div className="flex items-center space-x-2">
+                    <span>Created by {getMemberName(task?.creatorId || '')}</span>
+                    <span>&bull;</span>
+                    <span>{formatRelativeTime(task?.createdAt || '')}</span>
+                  </div>
+                  {task?.completedAt && (
+                    <div className="flex items-center space-x-1.5 text-teal-600 font-medium">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Completed {formatRelativeTime(task.completedAt)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
