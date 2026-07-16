@@ -461,7 +461,7 @@ export default function TaskModal({
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal Card wrapper */}
-      <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col relative z-10 overflow-hidden shadow-xl animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-4xl h-[85vh] max-h-[750px] min-h-[500px] flex flex-col relative z-10 overflow-hidden shadow-xl animate-in fade-in duration-200">
         {/* Header toolbar */}
         <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -573,7 +573,7 @@ export default function TaskModal({
             setTargetId={setTargetId}
           />
         ) : (
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row h-full">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
             {/* Left Parameters column */}
             <div className="w-full md:w-1/2 p-6 border-b md:border-b-0 md:border-r border-slate-100 overflow-y-auto space-y-6">
               <div className="space-y-2">
