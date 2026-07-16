@@ -238,9 +238,10 @@ export default function TaskCommentsSection({
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
     const container = feedContainerRef.current;
     if (container) {
+      const resolvedBehavior = typeof behavior === 'string' ? behavior : 'smooth';
       container.scrollTo({
         top: container.scrollHeight,
-        behavior
+        behavior: resolvedBehavior
       });
     }
   };
@@ -420,7 +421,7 @@ export default function TaskCommentsSection({
         {showJumpToLatest && (
           <button
             type="button"
-            onClick={scrollToBottom}
+            onClick={() => scrollToBottom('smooth')}
             className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-teal-500 hover:bg-teal-600 text-white text-[11px] font-bold px-3.5 py-2 rounded-full shadow-lg flex items-center gap-1.5 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 z-10 hover:scale-105 cursor-pointer"
           >
             <span>Jump to latest message</span>
