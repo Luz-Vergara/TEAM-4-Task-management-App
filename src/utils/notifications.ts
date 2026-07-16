@@ -173,6 +173,35 @@ function generateEmailBody(
   return { subject, html };
 }
 
+function parseMentions(commentText: string, members: UserProfile[], senderRole: string): { mentionedUids: Set<string>; isEveryone: boolean } {
+  const mentionedUids = new Set<string>();
+  let isEveryone = false;
+
+  const normalizedText = commentText.toLowerCase();
+
+  // Check @everyone for authorized roles (admin, leader)
+  const isAuthorizedForEveryone = senderRole === 'admin' || senderRole === 'leader';
+  if (isAuthorizedForEveryone && normalizedText.includes('@everyone')) {
+    isEveryone = true;
+  }
+
+  members.forEach((member) => {
+    // Check multiple formats: @Name, @NameName, @Name_Name
+    const nameFormats = [
+      `@${member.name.toLowerCase()}`,
+      `@${member.name.toLowerCase().replace(/\s+/g, '')}`,
+      `@${member.name.toLowerCase().replace(/\s+/g, '_')}`,
+    ];
+
+    const hasMention = nameFormats.some(format => normalizedText.includes(format));
+    if (hasMention) {
+      mentionedUids.add(member.uid);
+    }
+  });
+
+  return { mentionedUids, isEveryone };
+}
+
 /**
  * Dispatches PWA Push Notifications and email logs to all workspace members in Firestore.
  */
@@ -182,7 +211,7 @@ export async function dispatchNotification(
   details: string,
   triggerUser: { uid: string; name: string; email?: string },
   task?: Task | null,
-  extra?: { channelId?: string | null; channelName?: string | null; targetId?: string | null; notificationType?: string; milestoneTitle?: string }
+  extra?: { channelId?: string | null; channelName?: string | null; targetId?: string | null; notificationType?: string; milestoneTitle?: string; commentId?: string | null }
 ) {
   try {
     // 1. Fetch all members in the workspace to see who gets notified
@@ -230,6 +259,8 @@ export async function dispatchNotification(
 
     // Resolve the triggering user's email address if not provided in the payload
     const triggerEmail = triggerUser.email || members.find(m => m.uid === triggerUser.uid)?.email;
+    const triggerMember = members.find(m => m.uid === triggerUser.uid);
+    const triggerUserRole = triggerMember?.role || 'member';
 
     const dispatchPromises = members.map(async (member) => {
       // "Do not notify users about actions they performed themselves."
@@ -272,8 +303,8 @@ export async function dispatchNotification(
         }
       } else if (action === 'comment_added') {
         const commentText = details.split('commented: ')[1] || details;
-        const isMentioned = commentText.toLowerCase().includes('@' + member.name.toLowerCase().replace(/\s+/g, '')) || 
-                            commentText.toLowerCase().includes(member.name.toLowerCase());
+        const { mentionedUids, isEveryone } = parseMentions(commentText, members, triggerUserRole);
+        const isMentioned = isEveryone || mentionedUids.has(member.uid);
         
         const isAssigned = task && (
           task.assignedUserId === member.uid || 
@@ -352,6 +383,7 @@ export async function dispatchNotification(
         targetId: extra?.targetId || task?.targetId || null,
         notificationType: notificationType,
         message: message,
+        commentId: extra?.commentId || null,
       };
 
       // Add notification document to Firestore

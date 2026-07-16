@@ -75,6 +75,7 @@ export default function App() {
   // Modals state
   const [activeTaskForModal, setActiveTaskForModal] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const [taskModalInitialStatus, setTaskModalInitialStatus] = useState<TaskStatus>(TaskStatus.TODO);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
@@ -607,9 +608,11 @@ export default function App() {
           onClose={() => {
             setIsTaskModalOpen(false);
             setActiveTaskForModal(null);
+            setHighlightedCommentId(null);
           }}
           onSaveTask={handleSaveTask}
           onDeleteTask={handleDeleteTask}
+          highlightedCommentId={highlightedCommentId}
         />
       )}
 
@@ -697,8 +700,9 @@ export default function App() {
           userProfile={userProfile}
           onUpdateProfile={(updated) => setUserProfile(updated)}
           tasks={tasks}
-          onOpenTask={(task) => {
+          onOpenTask={(task, commentId) => {
             setIsNotificationModalOpen(false);
+            setHighlightedCommentId(commentId || null);
             handleSelectTaskDetails(task);
           }}
           onSelectChannel={(channelId) => {

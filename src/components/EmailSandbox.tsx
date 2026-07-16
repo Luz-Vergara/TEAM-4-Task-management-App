@@ -59,6 +59,72 @@ export default function EmailSandbox({
   const [copied, setCopied] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Send real-time test SMTP verification email states
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [testStatus, setTestStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+
+  const handleSendTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testEmailAddress.trim()) return;
+
+    setTestStatus({ type: 'sending', message: 'Initiating SMTP connection & delivering test verification payload...' });
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: testEmailAddress.trim(),
+          recipientName: testEmailAddress.split('@')[0],
+          subject: '🔒 TEAM 4 Workflow Hub - Enterprise Security Delivery Test',
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+              <div style="background-color: #0d9488; padding: 18px; border-radius: 8px; text-align: center; color: white;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">SMTP SECURE DISPATCH VERIFICATION</h2>
+              </div>
+              <div style="padding: 24px 12px; color: #334155; line-height: 1.6;">
+                <p>Hello <strong>${testEmailAddress.split('@')[0]}</strong>,</p>
+                <p>This is a live SMTP transaction test notification dispatched from your <strong>TEAM 4 Workflow Hub Sandbox</strong>.</p>
+                
+                <div style="background-color: #f0fdfa; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #0d9488; border-right: 1px solid #ccfbf1; border-top: 1px solid #ccfbf1; border-bottom: 1px solid #ccfbf1;">
+                  <strong style="color: #0f172a; display: block; margin-bottom: 5px; font-size: 13px;">🔒 Enterprise Security Notice</strong>
+                  <p style="margin: 0; font-size: 12px; color: #115e59;">If you are reading this message in your official Inbox, it confirms your mail provider's filters, SPF/DKIM validation, and domain rules are successfully accepting notifications from this workspace.</p>
+                </div>
+
+                <div style="background-color: #fef2f2; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444; border-right: 1px solid #fee2e2; border-top: 1px solid #fee2e2; border-bottom: 1px solid #fee2e2;">
+                  <strong style="color: #991b1b; display: block; margin-bottom: 5px; font-size: 13px;">⚠️ If this landed in Spam / Quarantine:</strong>
+                  <p style="margin: 0; font-size: 12px; color: #991b1b;">Please click <strong>"Not Spam"</strong>, add the sender email address to your trusted Safe Senders list/Contacts, or ask your IT Administrator to whitelist this sender address at the corporate email gateway to bypass security blocklists.</p>
+                </div>
+              </div>
+              <div style="text-align: center; padding: 16px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8;">
+                TEAM 4 Workflow Hub • Automated Mail Server Sandbox
+              </div>
+            </div>
+          `
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setTestStatus({ 
+          type: 'success', 
+          message: data.mocked 
+            ? 'Success! (Development Sandbox Mode) Real SMTP credentials are not yet configured in Settings, so this test dispatch was safely logged locally in the Simulated Mail Server center below.' 
+            : 'Success! The test notification was successfully handshaked and sent via the SMTP relay. Please check both your Inbox and Spam folders!' 
+        });
+      } else {
+        setTestStatus({ 
+          type: 'error', 
+          message: data.error || data.details || 'Failed to dispatch email. Please check your SMTP configuration settings.' 
+        });
+      }
+    } catch (err: any) {
+      setTestStatus({ type: 'error', message: err.message || 'Network error occurred.' });
+    }
+  };
+
   // Load emails (notifications) in real-time
   useEffect(() => {
     if (!userProfile) return;
@@ -210,6 +276,16 @@ export default function EmailSandbox({
 
           {/* Action trigger info */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setTestEmailAddress(userProfile.email || '');
+                setTestStatus({ type: 'idle', message: '' });
+                setShowTestModal(true);
+              }}
+              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+            >
+              <Send className="w-3.5 h-3.5" /> Send Test SMTP Email
+            </button>
             <button
               onClick={handleClearAllLogs}
               disabled={emails.length === 0}
@@ -629,6 +705,88 @@ export default function EmailSandbox({
         </div>
 
       </div>
+
+      {/* Test SMTP Email Dispatch Modal */}
+      {showTestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowTestModal(false)} />
+          
+          {/* Modal Container */}
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md p-6 relative z-10 shadow-xl animate-in fade-in duration-200 text-left">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5 uppercase tracking-wider">
+                <Mail className="w-4 h-4 text-teal-600" />
+                SMTP Delivery Verification
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setShowTestModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-50 rounded"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendTestEmail} className="space-y-4">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Test how the team's mail servers handshake with enterprise domains (such as <strong className="text-slate-700">@tesda.gov.ph</strong> or <strong className="text-slate-700">@tesda.com</strong>).
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
+                  Recipient Email Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. member@tesda.gov.ph"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                />
+              </div>
+
+              {testStatus.type !== 'idle' && (
+                <div className={`p-3.5 rounded-xl border text-[11px] leading-relaxed ${
+                  testStatus.type === 'sending' 
+                    ? 'bg-blue-50/50 border-blue-100 text-blue-700' 
+                    : testStatus.type === 'success' 
+                    ? 'bg-emerald-50/50 border-emerald-100 text-emerald-800' 
+                    : 'bg-rose-50/50 border-rose-100 text-rose-800'
+                }`}>
+                  <div className="font-bold mb-1 flex items-center gap-1.5">
+                    {testStatus.type === 'sending' && (
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
+                    )}
+                    {testStatus.type === 'success' && '✔️ Dispatch Success'}
+                    {testStatus.type === 'error' && '❌ Delivery Error'}
+                    {testStatus.type === 'sending' && 'Sending...'}
+                  </div>
+                  {testStatus.message}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTestModal(false)}
+                  className="px-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={testStatus.type === 'sending'}
+                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white rounded-lg text-xs font-bold shadow-sm transition"
+                >
+                  {testStatus.type === 'sending' ? 'Delivering...' : 'Send Test Mail'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

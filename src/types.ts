@@ -205,4 +205,5 @@ export interface Notification {
   targetId?: string | null;
   notificationType?: string;
   message?: string;
+  commentId?: string | null;
 }

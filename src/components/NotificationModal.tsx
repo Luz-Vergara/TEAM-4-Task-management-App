@@ -16,7 +16,7 @@ interface NotificationModalProps {
   userProfile: UserProfile;
   onUpdateProfile: (updatedProfile: UserProfile) => void;
   tasks?: Task[];
-  onOpenTask?: (task: Task) => void;
+  onOpenTask?: (task: Task, commentId?: string | null) => void;
   onSelectChannel?: (channelId: string) => void;
 }
 
@@ -207,7 +207,7 @@ export default function NotificationModal({
         onSelectChannel(notif.channelId);
       }
       if (onOpenTask) {
-        onOpenTask(liveTask);
+        onOpenTask(liveTask, notif.commentId);
       }
     } else {
       alert('This task has been archived, deleted, or is no longer in this workspace.');

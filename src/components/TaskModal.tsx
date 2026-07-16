@@ -39,6 +39,7 @@ interface TaskModalProps {
   onClose: () => void;
   onSaveTask: (taskData: Partial<Task>, shouldCloseModal?: boolean) => void;
   onDeleteTask?: (taskId: string) => void;
+  highlightedCommentId?: string | null;
 }
 
 export default function TaskModal({
@@ -49,7 +50,8 @@ export default function TaskModal({
   members,
   onClose,
   onSaveTask,
-  onDeleteTask
+  onDeleteTask,
+  highlightedCommentId
 }: TaskModalProps) {
   const [isEditing, setIsEditing] = useState(task === null);
   const [title, setTitle] = useState('');
@@ -378,7 +380,7 @@ export default function TaskModal({
     setSendingComment(true);
     try {
       const commentsRef = collection(db, 'workspaces', task.workspaceId, 'comments');
-      await addDoc(commentsRef, {
+      const docRef = await addDoc(commentsRef, {
         workspaceId: task.workspaceId,
         channelId: task.channelId,
         taskId: task.id,
@@ -395,7 +397,8 @@ export default function TaskModal({
         'comment_added',
         `${userProfile.name} commented: "${trimmedComment.substring(0, 80)}${trimmedComment.length > 80 ? '...' : ''}"`,
         { uid: userProfile.uid, name: userProfile.name },
-        task
+        task,
+        { commentId: docRef.id }
       );
 
       setNewComment('');
@@ -813,6 +816,8 @@ export default function TaskModal({
                 handleAddDriveLink={handleAddDriveLink}
                 commentsEndRef={commentsEndRef}
                 userProfile={userProfile}
+                highlightedCommentId={highlightedCommentId}
+                members={members}
               />
             )}
           </div>

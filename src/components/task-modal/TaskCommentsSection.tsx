@@ -38,6 +38,8 @@ interface TaskCommentsSectionProps {
   handleAddDriveLink: (e: React.FormEvent) => void;
   commentsEndRef: React.RefObject<HTMLDivElement | null>;
   userProfile: UserProfile;
+  highlightedCommentId?: string | null;
+  members?: UserProfile[];
 }
 
 export default function TaskCommentsSection({
@@ -61,7 +63,9 @@ export default function TaskCommentsSection({
   setDriveName,
   handleAddDriveLink,
   commentsEndRef,
-  userProfile
+  userProfile,
+  highlightedCommentId,
+  members
 }: TaskCommentsSectionProps) {
 
   const getRoleBadge = (role: UserRole) => {
@@ -80,6 +84,150 @@ export default function TaskCommentsSection({
   const isFirstLoadRef = React.useRef(true);
   const lastTaskIdRef = React.useRef<string | null>(null);
 
+  // Mentions State
+  const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const [suggestionSearch, setSuggestionSearch] = React.useState('');
+  const [mentionTriggerIndex, setMentionTriggerIndex] = React.useState(-1);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = React.useState(0);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const getMentionsRegex = (mList: UserProfile[]) => {
+    const names = ['everyone'];
+    mList.forEach(m => {
+      const baseName = m.name;
+      names.push(baseName);
+      names.push(baseName.replace(/\s+/g, ''));
+      names.push(baseName.replace(/\s+/g, '_'));
+    });
+    names.sort((a, b) => b.length - a.length);
+    const registry = names.map(n => n.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
+    return new RegExp(`@(${registry.join('|')})\\b`, 'gi');
+  };
+
+  const renderCommentWithMentions = (content: string) => {
+    if (!content) return null;
+    const mList = members || [];
+    const regex = getMentionsRegex(mList);
+    const parts = content.split(regex);
+    if (parts.length === 1) return content;
+    
+    const matches = content.match(regex) || [];
+    let matchIndex = 0;
+    
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        const matchText = matches[matchIndex++];
+        const isEveryone = matchText?.toLowerCase() === '@everyone';
+        return (
+          <span 
+            key={index} 
+            className={`px-1.5 py-0.5 rounded-md font-extrabold text-[11px] inline-flex items-center gap-0.5 border ${
+              isEveryone
+                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                : 'bg-teal-50 border-teal-200 text-teal-700'
+            }`}
+          >
+            {matchText}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
+  const getFilteredSuggestions = () => {
+    const list: { id: string; name: string; isEveryone?: boolean; role?: string }[] = [];
+    
+    // Add everyone option if authorized
+    const isAuthorizedForEveryone = userProfile.role === 'admin' || userProfile.role === 'leader';
+    if (isAuthorizedForEveryone) {
+      list.push({ id: 'everyone', name: 'everyone', isEveryone: true });
+    }
+    
+    // Add workspace members
+    (members || []).forEach(m => {
+      if (m.uid !== userProfile.uid) {
+        list.push({ id: m.uid, name: m.name, role: m.role });
+      }
+    });
+    
+    if (!suggestionSearch) return list;
+    
+    const searchLower = suggestionSearch.toLowerCase();
+    return list.filter(item => item.name.toLowerCase().includes(searchLower));
+  };
+  
+  const filteredSuggestions = getFilteredSuggestions();
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setNewComment(text);
+
+    const cursor = e.target.selectionStart;
+    const textBeforeCursor = text.slice(0, cursor);
+    
+    const lastWordMatch = textBeforeCursor.match(/@(\w*)$/);
+    if (lastWordMatch) {
+      const search = lastWordMatch[1];
+      const matchIndex = lastWordMatch.index;
+      setShowSuggestions(true);
+      setSuggestionSearch(search);
+      setMentionTriggerIndex(matchIndex !== undefined ? matchIndex : -1);
+      setSelectedSuggestionIndex(0);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion: { name: string }) => {
+    const text = newComment;
+    const before = text.slice(0, mentionTriggerIndex);
+    
+    const cursor = textareaRef.current ? textareaRef.current.selectionStart : text.length;
+    const after = text.slice(cursor);
+    
+    const mentionText = `@${suggestion.name} `;
+    const updatedText = before + mentionText + after;
+    setNewComment(updatedText);
+    setShowSuggestions(false);
+    
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      const newCursorPos = before.length + mentionText.length;
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = newCursorPos;
+          textareaRef.current.selectionEnd = newCursorPos;
+        }
+      }, 50);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSuggestions && filteredSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev + 1) % filteredSuggestions.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev - 1 + filteredSuggestions.length) % filteredSuggestions.length);
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        handleSelectSuggestion(filteredSuggestions[selectedSuggestionIndex]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+      }
+    } else {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (newComment.trim() || commentAttachments.length > 0) {
+          handlePostComment(e);
+        }
+      }
+    }
+  };
+
   const handleScroll = () => {
     const container = feedContainerRef.current;
     if (!container) return;
@@ -87,12 +235,12 @@ export default function TaskCommentsSection({
     setShowJumpToLatest(isScrolledUp);
   };
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
     const container = feedContainerRef.current;
     if (container) {
       container.scrollTo({
         top: container.scrollHeight,
-        behavior: 'smooth'
+        behavior
       });
     }
   };
@@ -117,21 +265,51 @@ export default function TaskCommentsSection({
     if (comments.length === 0) return;
 
     if (isFirstLoadRef.current) {
+      // Set scroll instantly first, then with timeout to guarantee scroll when layout finishes
       container.scrollTop = container.scrollHeight;
+      const t1 = setTimeout(() => {
+        if (container) container.scrollTop = container.scrollHeight;
+      }, 50);
+      const t2 = setTimeout(() => {
+        if (container) container.scrollTop = container.scrollHeight;
+      }, 150);
       isFirstLoadRef.current = false;
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     } else if (comments.length > prevLength) {
       const lastComment = comments[comments.length - 1];
       const isMyComment = lastComment.userId === userProfile.uid;
       const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 250;
 
       if (isMyComment || isNearBottom) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth'
-        });
+        const t1 = setTimeout(() => {
+          scrollToBottom('smooth');
+        }, 50);
+        const t2 = setTimeout(() => {
+          scrollToBottom('smooth');
+        }, 150);
+        return () => {
+          clearTimeout(t1);
+          clearTimeout(t2);
+        };
       }
     }
   }, [comments, userProfile.uid]);
+
+  // Handle scrolling to highlighted mention comment
+  React.useEffect(() => {
+    if (highlightedCommentId && comments.length > 0) {
+      const element = document.getElementById(`comment-${highlightedCommentId}`);
+      if (element) {
+        const t = setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 350);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [highlightedCommentId, comments]);
 
   return (
     <div className="w-full md:w-1/2 flex flex-col bg-slate-50/50 overflow-hidden h-full relative">
@@ -170,13 +348,20 @@ export default function TaskCommentsSection({
             }
 
             const isMe = c.userId === userProfile.uid;
+            const isHighlighted = c.id === highlightedCommentId;
 
             return (
-              <div key={c.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full animate-in fade-in-50 duration-200`}>
+              <div 
+                key={c.id} 
+                id={`comment-${c.id}`}
+                className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full animate-in fade-in-50 duration-200`}
+              >
                 <div className={`text-xs space-y-1 p-3 rounded-2xl border shadow-sm transition text-left max-w-[85%] break-words min-w-0 ${
-                  isMe 
-                    ? 'bg-blue-50 border-blue-200 hover:border-blue-300 rounded-tr-none' 
-                    : 'bg-white border-slate-200 hover:border-teal-200 rounded-tl-none'
+                  isHighlighted
+                    ? 'ring-2 ring-teal-400 bg-teal-50 border-teal-300 scale-[1.01] shadow-md rounded-tr-none rounded-tl-none animate-pulse'
+                    : isMe 
+                      ? 'bg-blue-50 border-blue-200 hover:border-blue-300 rounded-tr-none' 
+                      : 'bg-white border-slate-200 hover:border-teal-200 rounded-tl-none'
                 }`}>
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-1.5 overflow-hidden">
@@ -189,7 +374,9 @@ export default function TaskCommentsSection({
                       {formatRelativeTime(c.createdAt)}
                     </span>
                   </div>
-                  <p className={`leading-relaxed whitespace-pre-wrap break-words ${isMe ? 'text-blue-900/95' : 'text-slate-600'}`}>{c.content}</p>
+                  <p className={`leading-relaxed whitespace-pre-wrap break-words ${isMe ? 'text-blue-900/95' : 'text-slate-600'}`}>
+                    {renderCommentWithMentions(c.content)}
+                  </p>
 
                   {c.attachments && c.attachments.length > 0 && (
                     <div className={`mt-2 pt-1.5 border-t flex flex-wrap gap-1.5 ${isMe ? 'border-blue-100' : 'border-slate-100'}`}>
@@ -304,6 +491,56 @@ export default function TaskCommentsSection({
         </div>
       )}
 
+      {showSuggestions && filteredSuggestions.length > 0 && (
+        <div className="absolute bottom-[60px] left-3 right-3 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto p-1 animate-in slide-in-from-bottom-2 duration-150 flex flex-col text-left">
+          <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50">
+            Mention member or channel
+          </div>
+          {filteredSuggestions.map((item, index) => {
+            const isSelected = index === selectedSuggestionIndex;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelectSuggestion(item)}
+                onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                className={`w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition ${
+                  isSelected ? 'bg-teal-500 text-white' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {item.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="font-semibold">{item.name}</span>
+                </div>
+                {item.isEveryone ? (
+                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    All Members
+                  </span>
+                ) : item.role ? (
+                  <span className={`text-[8px] font-bold uppercase px-1 rounded ${
+                    isSelected 
+                      ? 'bg-white/20 text-white border border-white/30' 
+                      : item.role === 'admin'
+                        ? 'bg-teal-50 text-teal-600 border border-teal-100'
+                        : item.role === 'leader'
+                          ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                          : 'bg-slate-100 text-slate-500 border border-slate-200'
+                  }`}>
+                    {item.role}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Post comment input form */}
       <form onSubmit={handlePostComment} className="p-3 bg-white border-t border-slate-100 flex items-center gap-2 shrink-0">
         {/* Paperclip button to open upload menu */}
@@ -336,17 +573,11 @@ export default function TaskCommentsSection({
         </div>
 
         <textarea
+          ref={textareaRef}
           placeholder="Type feedback, blocker, or message..."
           value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              if (newComment.trim() || commentAttachments.length > 0) {
-                handlePostComment(e);
-              }
-            }
-          }}
+          onChange={handleTextareaChange}
+          onKeyDown={handleKeyDown}
           disabled={sendingComment}
           rows={1}
           className="flex-1 bg-slate-100 text-xs border-none rounded-lg py-2 px-3 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none min-h-[36px] max-h-32 scrollbar-thin"
