@@ -185,6 +185,7 @@ export default function App() {
           title: taskData.title || 'Untitled Task',
           description: taskData.description || '',
           assignedUserId: taskData.assignedUserId || '',
+          assignedUserIds: taskData.assignedUserIds || (taskData.assignedUserId ? [taskData.assignedUserId] : []),
           creatorId: userProfile.uid,
           priority: taskData.priority || TaskPriority.MEDIUM,
           status: taskData.status || TaskStatus.TODO,
@@ -192,11 +193,19 @@ export default function App() {
           targetId: taskData.targetId !== undefined ? taskData.targetId : null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          completedAt: (taskData.status === TaskStatus.COMPLETED) ? new Date().toISOString() : undefined,
           attachments: taskData.attachments || []
         };
 
-        await setDoc(taskDocRef, finalTask);
+        if (taskData.status === TaskStatus.COMPLETED) {
+          finalTask.completedAt = new Date().toISOString();
+        }
+
+        // Firestore does not allow undefined fields, so filter them out
+        const cleanedTask = Object.fromEntries(
+          Object.entries(finalTask).filter(([_, v]) => v !== undefined)
+        );
+
+        await setDoc(taskDocRef, cleanedTask);
 
         await logActivity(
           wId,
@@ -235,7 +244,12 @@ export default function App() {
           updatePayload.completedAt = new Date().toISOString();
         }
 
-        await updateDoc(taskDocRef, updatePayload);
+        // Firestore does not allow undefined fields, so filter them out
+        const cleanedPayload = Object.fromEntries(
+          Object.entries(updatePayload).filter(([_, v]) => v !== undefined)
+        );
+
+        await updateDoc(taskDocRef, cleanedPayload);
 
         // Fetch user name for logger detail if task changed assignee
         const updatedTitle = taskData.title || activeTaskForModal.title;
@@ -274,8 +288,9 @@ export default function App() {
           setActiveTaskForModal(prev => prev ? { ...prev, ...taskData } as Task : null);
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error saving task:', e);
+      alert('Failed to save task: ' + (e?.message || e));
     }
   };
 
